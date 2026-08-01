@@ -15,9 +15,14 @@ WHAT'S INSIDE
 
 CARD DATA INCLUDED
 - One Piece TCG: the full run OP-01 through OP-16, plus Extra Boosters
-  EB-01/02/03 and Premium Boosters PRB-01/02 — 1,923 unique cards
-  (2,572 total printings once every alt-art/parallel/box-topper variant is
-  counted), sourced from the OPTCG API (optcgapi.com).
+  EB-01/02/03, Premium Boosters PRB-01/02, and all currently-available
+  starter decks — ST-01 through ST-28, plus the ST-30 "Luffy & Ace" EX
+  deck — 2,239 unique cards (3,079 total printings once every
+  alt-art/parallel/box-topper variant is counted), sourced from the OPTCG
+  API (optcgapi.com). Note: the OPTCG API exposes 29 starter decks (ST-01
+  through ST-28, then ST-30 — ST-29 does not exist in this data source), not
+  36; if a full 36-deck count is needed that would require a different data
+  source.
 - Gundam Card Game: booster sets GD01–GD05, the Eternal Nexus EX set, several
   starter decks, and promos — 826 unique cards (1,303 counting alt-art
   printings), sourced from the gcg-api project (gcgapi.com). The Gundam TCG
