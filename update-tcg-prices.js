@@ -149,9 +149,9 @@ async function main() {
   let src = fs.readFileSync('onepiece_cards.js', 'utf8');
   eval(src);
   let cards = global.window.ONEPIECE_CARDS;
-  let stats = applyPrices(cards, opMap);
-  console.log('One Piece: matched ' + stats.matched + '/' + stats.total + ', changed ' + stats.updated);
-  if (stats.updated > 0) {
+  const opStats = applyPrices(cards, opMap);
+  console.log('One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated);
+  if (opStats.updated > 0) {
     fs.writeFileSync('onepiece_cards.js', 'window.ONEPIECE_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
   }
@@ -160,9 +160,9 @@ async function main() {
   src = fs.readFileSync('gundam_cards.js', 'utf8');
   eval(src);
   cards = global.window.GUNDAM_CARDS;
-  stats = applyPrices(cards, gdMap);
-  console.log('Gundam: matched ' + stats.matched + '/' + stats.total + ', changed ' + stats.updated);
-  if (stats.updated > 0) {
+  const gdStats = applyPrices(cards, gdMap);
+  console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated);
+  if (gdStats.updated > 0) {
     fs.writeFileSync('gundam_cards.js', 'window.GUNDAM_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
   }
@@ -172,6 +172,17 @@ async function main() {
   } else {
     console.log('No price changes detected, leaving sw.js untouched');
   }
+
+  // Always write a small status log, even on days with no price changes.
+  // GitHub disables a *scheduled* workflow automatically after 60 days with
+  // no commits to the repo (workflow runs alone don't count) - so without
+  // this, a stretch of "nothing changed" days could silently let the daily
+  // schedule go dormant. Writing this file guarantees there's always
+  // something to commit, so the cron trigger never goes stale.
+  const log = 'Last price sync: ' + new Date().toISOString() + '\n'
+    + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + '\n'
+    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + '\n';
+  fs.writeFileSync('PRICE_SYNC_LOG.txt', log);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
