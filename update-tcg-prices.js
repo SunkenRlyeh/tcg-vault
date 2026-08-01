@@ -130,8 +130,21 @@ function normSet(s) { return String(s || '').trim().toLowerCase(); }
 // array before pricing runs - so they become permanent, priceable,
 // mirrorable entries instead of vanishing every time the tab closes.
 const GCGAPI_BASE = 'https://api.gcgapi.com/v1';
-const GUNDAM_STARTER_SETS = ['ST01', 'ST02', 'ST03', 'ST04', 'ST05', 'ST06', 'ST07', 'ST08', 'ST09', 'ST10'];
+// ST11-ST14 (Aquatic Assault, Raging Onslaught, Silent Barrage, Heavy
+// Dominion - all releasing 2026-09-25) are pre-added here even though none
+// are out yet - fetchRuntimeOnlyGundamCards() below tolerates any set
+// gcgapi.com doesn't have data for yet (empty/404 -> caught -> logged ->
+// skipped), so this is a harmless no-op until release day, then starts
+// working with zero further changes needed.
+const GUNDAM_STARTER_SETS = ['ST01', 'ST02', 'ST03', 'ST04', 'ST05', 'ST06', 'ST07', 'ST08', 'ST09', 'ST10', 'ST11', 'ST12', 'ST13', 'ST14'];
 const GUNDAM_RUNTIME_TYPES = ['EX RESOURCE', 'EX BASE', 'UNIT TOKEN'];
+// Mainline numbered boosters (GD01-05 etc.) aren't fetched here day to day -
+// that data was originally bulk-imported once directly into gundam_cards.js,
+// not hydrated at runtime like starter decks/EX Resources are. New mainline
+// sets need their code added below once announced so they get folded in the
+// same way. GD06 (Stardust Trails, releases 2026-10-30) is pre-added now for
+// the same no-op-until-release reason as ST11 above.
+const GUNDAM_UPCOMING_MAINLINE_SETS = ['GD06'];
 
 function firstPresent(obj, keys) {
   for (const k of keys) {
@@ -220,6 +233,15 @@ async function fetchRuntimeOnlyGundamCards() {
       found.push(...parseEnvelope(payload).map(normalizeGundamCard));
     } catch (e) {
       console.log('  skip gcgapi type ' + type + ': ' + e.message);
+    }
+    await sleep(150);
+  }
+  for (const setCode of GUNDAM_UPCOMING_MAINLINE_SETS) {
+    try {
+      const payload = await fetchJson(GCGAPI_BASE + '/sets/' + setCode + '/cards');
+      found.push(...parseEnvelope(payload).map(normalizeGundamCard));
+    } catch (e) {
+      console.log('  skip gcgapi set ' + setCode + ': ' + e.message);
     }
     await sleep(150);
   }
