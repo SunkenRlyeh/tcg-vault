@@ -44,9 +44,14 @@ and parallels are counted. Base data from the OPTCG API (optcgapi.com);
 DON!! cards are pulled in separately from OPTCG's DON!! endpoint.
 
 Gundam Card Game: GD01–GD05, the Eternal Nexus EX set, starter decks
-ST01–ST10, and promos. 826 unique cards, 1,303 printings counting alt
-arts. Base data from the gcg-api project (gcgapi.com), with starter deck
-cards filled in at runtime so repeated card numbers stay distinct.
+ST01–ST10, EX Resources/EX Bases/tokens, and promos. 992 unique cards,
+1,652 printings counting alt arts. Base data from the gcg-api project
+(gcgapi.com). Starter deck and EX Resource/Base/token cards used to only
+ever exist in-memory (fetched live by the app on each page load), which
+meant they were invisible to price syncing and image mirroring — the
+daily price-sync workflow now also pulls those same endpoints and
+permanently folds any new cards into this file, so they get real prices
+and mirrored art like everything else.
 
 
 PRICING
