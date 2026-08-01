@@ -139,9 +139,10 @@ button, input, select { font-family: inherit; }
 
 .deck-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .deck-toolbar select { flex: 1; min-width: 120px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
-.legality { padding: 8px 10px; border-radius: 10px; margin-bottom: 10px; font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); }
+.legality { padding: 8px 10px; border-radius: 10px; margin-bottom: 10px; font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .legality.ok { border-color: var(--green); color: var(--green); }
 .legality.warn { border-color: var(--amber); color: var(--amber); }
+.legality-toggle { font-size: 11px; padding: 6px 8px; }
 .deck-stats {
   background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
   padding: 10px; margin-bottom: 10px;

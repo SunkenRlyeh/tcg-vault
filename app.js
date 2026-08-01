@@ -90,7 +90,7 @@ state.activeDeck = state.activeDeck || { onepiece:null, gundam:null };
 state.decks.onepiece = state.decks.onepiece || [];
 state.decks.gundam = state.decks.gundam || [];
 state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
-state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; });
+state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; deck.allowExtraColors = !!deck.allowExtraColors; });
 
 function saveState(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){ /* storage full or unavailable */ }
@@ -316,7 +316,7 @@ function createDeck(game, name){
   var id = 'd' + Date.now() + Math.floor(Math.random()*1000);
   var deck = game === 'onepiece'
     ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{}, tokens:{} }
-    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, tokens:{} };
+    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, tokens:{}, allowExtraColors:false };
   state.decks[game].push(deck);
   state.activeDeck[game] = id;
   saveState();
@@ -327,7 +327,10 @@ function ensureActiveDeck(game){
   if(!getActiveDeck(game)) state.activeDeck[game] = getDecks(game)[0].id;
   var deck = getActiveDeck(game);
   if(game === 'onepiece') deck.dons = deck.dons || {};
-  if(game === 'gundam') deck.resources = deck.resources || {};
+  if(game === 'gundam'){
+    deck.resources = deck.resources || {};
+    deck.allowExtraColors = !!deck.allowExtraColors;
+  }
   deck.tokens = deck.tokens || {};
   return deck;
 }
@@ -454,8 +457,18 @@ function deckLegality(game, deck){
     if(rtotal !== 10) errs.push('Resource deck has ' + rtotal + '/10 cards');
     var over2 = 0; Object.keys(deck.cards).forEach(function(k){ if(deck.cards[k]>4) over2++; });
     if(over2) errs.push(over2 + ' card(s) exceed the 4-copy limit');
+    var colors = gundamDeckColors(deck, idx);
+    if(colors.length > 2 && !deck.allowExtraColors) errs.push('Deck has ' + colors.length + ' colors (' + colors.join(', ') + '); Gundam decks are limited to 2 colors');
   }
   return errs;
+}
+function gundamDeckColors(deck, idx){
+  var seen = {};
+  Object.keys(deck.cards || {}).forEach(function(num){
+    var c = (idx.byNumber[num]||[])[0];
+    cardColors(c).forEach(function(color){ seen[color] = true; });
+  });
+  return Object.keys(seen).sort();
 }
 function cardColors(card){
   return ((card && card.color)||'').split(/[\s,\/]+/).filter(Boolean);
@@ -963,8 +976,7 @@ function renderDeckView(){
   var idx = getIndex(game);
   var errs = deckLegality(game, deck);
   var legEl = document.getElementById('deck-legality');
-  if(errs.length === 0){ legEl.className = 'legality ok'; legEl.textContent = 'Deck is legal and ready to play.'; }
-  else { legEl.className = 'legality warn'; legEl.textContent = errs.join(' · '); }
+  renderLegalityPanel(game, deck, errs, legEl, idx);
   renderDeckStats(game, deck);
 
   var leaderSlot = document.getElementById('deck-leader-slot');
@@ -1078,6 +1090,28 @@ function renderDeckView(){
   });
 
   renderDeckAddGrid();
+}
+function renderLegalityPanel(game, deck, errs, legEl, idx){
+  var colors = game === 'gundam' ? gundamDeckColors(deck, idx) : [];
+  var ignoredColorWarning = game === 'gundam' && deck.allowExtraColors && colors.length > 2;
+  legEl.className = errs.length === 0 ? 'legality ok' : 'legality warn';
+  var message = errs.length === 0 ? 'Deck is legal and ready to play.' : errs.join(' · ');
+  if(ignoredColorWarning){
+    message += ' Extra Gundam colors allowed for this deck (' + colors.join(', ') + ').';
+  }
+  legEl.innerHTML = '<span>' + escapeHtml(message) + '</span>';
+  if(game === 'gundam'){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'text-btn legality-toggle';
+    btn.textContent = deck.allowExtraColors ? 'Enforce 2-color rule' : 'Allow 3+ colors';
+    btn.addEventListener('click', function(){
+      deck.allowExtraColors = !deck.allowExtraColors;
+      saveState();
+      renderDeckView();
+    });
+    legEl.appendChild(btn);
+  }
 }
 function renderDeckAddGrid(){
   var game = currentGame;
