@@ -100,6 +100,7 @@ button, input, select { font-family: inherit; }
   background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border);
   border-radius: 7px; min-height: 28px; font-size: 11px; font-weight: 700;
 }
+.quick-add button.remove { color: var(--accent-2); }
 .card-tile .qty-badge {
   position: absolute; margin: 6px; background: var(--accent); color: #fff;
   font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px;

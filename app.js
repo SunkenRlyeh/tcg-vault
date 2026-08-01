@@ -223,25 +223,30 @@ function addCardToDeck(game, card){
 }
 function addCardCopiesToDeck(game, card, count){
   var deck = ensureActiveDeck(game);
-  var added = 0;
+  var changed = 0;
   if(game === 'onepiece' && card.type === 'Leader'){
     deck.leader = card.number;
-    added = 1;
+    changed = 1;
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
-    deck.resources[card.number] = (deck.resources[card.number]||0) + count;
-    added = count;
+    var rcur = deck.resources[card.number] || 0;
+    var rnext = Math.max(0, rcur + count);
+    deck.resources[card.number] = rnext;
+    if(rnext === 0) delete deck.resources[card.number];
+    changed = rnext - rcur;
   } else {
     var cur = deck.cards[card.number] || 0;
-    var next = Math.min(4, cur + count);
-    added = next - cur;
-    if(added > 0) deck.cards[card.number] = next;
+    var next = Math.max(0, Math.min(4, cur + count));
+    if(next === 0) delete deck.cards[card.number]; else deck.cards[card.number] = next;
+    changed = next - cur;
   }
-  if(added > 0){
-    cacheImage(card.image_url);
+  if(changed !== 0){
+    if(changed > 0) cacheImage(card.image_url);
     saveState();
-    toast('Added ' + added + 'x ' + card.name);
-  } else {
+    toast((changed > 0 ? 'Added ' : 'Removed ') + Math.abs(changed) + 'x ' + card.name);
+  } else if(count > 0) {
     toast('Max 4 copies reached');
+  } else {
+    toast('No copies to remove');
   }
 }
 function deckLegality(game, deck){
@@ -839,10 +844,11 @@ function deckAddTile(c, game){
   var tile = cardTile(c, openCardModal);
   var quick = document.createElement('div');
   quick.className = 'quick-add';
-  [1,2,3,4].forEach(function(n){
+  [-1,-2,-3,-4,1,2,3,4].forEach(function(n){
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = '+' + n;
+    btn.textContent = (n > 0 ? '+' : '') + n;
+    if(n < 0) btn.className = 'remove';
     btn.addEventListener('click', function(e){
       e.stopPropagation();
       addCardCopiesToDeck(game, c, n);
