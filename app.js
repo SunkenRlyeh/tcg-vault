@@ -381,6 +381,7 @@ function hydrateRemoteCards(){
   });
 }
 function officialGundamImageCandidates(id){
+  id = String(id || '').toUpperCase();
   var cardListId = GUNDAM_CARDLIST_IMAGE_IDS[String(id || '').toUpperCase()];
   var scrydexIds = [];
   if(/^EXRP-/i.test(id) || /^EXB/i.test(id)){
@@ -404,6 +405,7 @@ function officialGundamImageCandidates(id){
     scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/medium');
   });
   var cardListUrls = cardListId ? ['https://static.gundamcardlist.com/images/cards/' + cardListId + '.jpg'] : [];
+  var specialUrls = GUNDAM_SPECIAL_IMAGE_URLS[id] || [];
   var cardGameSearcherUrls = ['https://cardgamesearcher.com/assets/img/cards/gcg/en/' + id + '.webp'];
   var officialUrls = /^EXB/i.test(id) || /^EXRP-/i.test(id) ? [] : [
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
@@ -413,12 +415,18 @@ function officialGundamImageCandidates(id){
   ];
   return [
     './gundam-images/' + id + '.webp',
-  ].concat(cardListUrls, cardGameSearcherUrls, scrydexUrls, officialUrls);
+  ].concat(cardListUrls, specialUrls, cardGameSearcherUrls, scrydexUrls, officialUrls);
 }
+var GUNDAM_SPECIAL_IMAGE_URLS = {
+  'EXBP-018': [
+    'https://www.gundam-gcg.com/jp/images/cards/card/EXBP-018.webp?260715=',
+    'https://www.gundam-gcg.com/jp/images/cards/card/EXBP-018.webp?260715',
+    'https://www.gundam-gcg.com/en/images/cards/card/EXBP-018.webp?260715=',
+    'https://www.gundam-gcg.com/en/images/cards/card/EXBP-018.webp?260715'
+  ]
+};
 var GUNDAM_CARDLIST_IMAGE_IDS = {
   'EXB-001':'616680',
-  'EXB-002':'684026',
-  'EXB-003':'707583',
   'EXR-001':'616679',
   'EXR-002':'684025',
   'EXR-004':'707586',
