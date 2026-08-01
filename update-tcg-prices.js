@@ -102,59 +102,59 @@ async function buildCategoryPriceMap(categoryId, label) {
 function normSet(s) { return String(s || '').trim().toLowerCase(); }
 
 // Applies a TCGPlayer price map onto our own card array (mutates in place).
-// Returns { matched, updated, total, fuzzy } counters for reporting.
+// Returns { matched, updated, cleared, total } counters for reporting.
 //
 // Card numbers alone aren't a safe key: the same printed number can show up
 // as a full-price original AND as a promo reprint bundled into a totally
 // different, later box (e.g. Amuro Ray ST01-010 also appears as a promo in
-// the Freedom Ascension deck-build box). TCGPlayer lists those as separate
-// products in separate groups, worth very different amounts. So we match in
-// order of confidence:
+// the Freedom Ascension deck-build box, worth cents instead of hundreds of
+// dollars). TCGPlayer lists those as separate products in separate groups.
+// So a match is only ever made within the SAME set:
 //   1. same card number + same set_code (TCGPlayer group abbreviation) +
 //      same rarity - the exact match.
 //   2. same number + same set_code, ignoring rarity - covers minor rarity
 //      label mismatches between our data and TCGPlayer's.
-//   3. same number only, matched by rarity, across any set - last-resort
-//      fallback for when our set_code doesn't correspond to a TCGPlayer
-//      group abbreviation at all. Flagged as "fuzzy" since it's the one
-//      case that can still cross sets and grab the wrong printing's price.
+// There is deliberately no cross-set fallback - guessing across sets is
+// exactly what caused wildly wrong prices before. Some of our own printings
+// also outnumber what TCGPlayer separately lists for a given set+number
+// (our alt-art tracking is more granular than TCGPlayer's catalog in some
+// spots) - those extra printings simply can't be confidently priced and are
+// left/cleared to null rather than guessing, since a missing price is far
+// less misleading than a wrong one.
 function applyPrices(cards, priceMap) {
   const byNumber = {};
   for (const c of cards) (byNumber[c.number] = byNumber[c.number] || []).push(c);
 
-  let matched = 0, updated = 0, fuzzy = 0;
+  let matched = 0, updated = 0, cleared = 0;
   for (const number of Object.keys(byNumber)) {
     const ours = byNumber[number]; // our printings for this card number, in file order
     const theirs = (priceMap[number] || []).filter((e) => e.market != null);
-    if (theirs.length === 0) continue;
 
     const claimed = new Set();
     for (const card of ours) {
       const cardSet = normSet(card.set_code);
-      let pick = null;
-      let isFuzzy = false;
-
-      pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet
+      let pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet
         && normRarity(e.rarity) === normRarity(card.rarity));
 
       if (!pick) {
         pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet);
       }
 
-      if (!pick) {
-        pick = theirs.find((e, i) => !claimed.has(i) && normRarity(e.rarity) === normRarity(card.rarity));
-        if (pick) isFuzzy = true;
-      }
-
       if (pick) {
         claimed.add(theirs.indexOf(pick));
         matched++;
-        if (isFuzzy) fuzzy++;
         if (card.price !== pick.market) { card.price = pick.market; updated++; }
+      } else if (card.price != null) {
+        // No confident same-set match this run - clear out whatever price
+        // was there before rather than let a possibly wrong value (e.g.
+        // from an earlier, cross-set-guessing version of this script)
+        // linger forever.
+        card.price = null;
+        cleared++;
       }
     }
   }
-  return { matched, updated, total: cards.length, fuzzy };
+  return { matched, updated, cleared, total: cards.length };
 }
 
 function bumpCacheVersion() {
@@ -181,8 +181,8 @@ async function main() {
   eval(src);
   let cards = global.window.ONEPIECE_CARDS;
   const opStats = applyPrices(cards, opMap);
-  console.log('One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', fuzzy ' + opStats.fuzzy);
-  if (opStats.updated > 0) {
+  console.log('One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', cleared ' + opStats.cleared);
+  if (opStats.updated > 0 || opStats.cleared > 0) {
     fs.writeFileSync('onepiece_cards.js', 'window.ONEPIECE_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
   }
@@ -192,8 +192,8 @@ async function main() {
   eval(src);
   cards = global.window.GUNDAM_CARDS;
   const gdStats = applyPrices(cards, gdMap);
-  console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', fuzzy ' + gdStats.fuzzy);
-  if (gdStats.updated > 0) {
+  console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', cleared ' + gdStats.cleared);
+  if (gdStats.updated > 0 || gdStats.cleared > 0) {
     fs.writeFileSync('gundam_cards.js', 'window.GUNDAM_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
   }
@@ -211,8 +211,8 @@ async function main() {
   // schedule go dormant. Writing this file guarantees there's always
   // something to commit, so the cron trigger never goes stale.
   const log = 'Last price sync: ' + new Date().toISOString() + '\n'
-    + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', fuzzy ' + opStats.fuzzy + '\n'
-    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', fuzzy ' + gdStats.fuzzy + '\n';
+    + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', cleared ' + opStats.cleared + '\n'
+    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', cleared ' + gdStats.cleared + '\n';
   fs.writeFileSync('PRICE_SYNC_LOG.txt', log);
 }
 
