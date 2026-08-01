@@ -135,3 +135,35 @@ tcg-vault-sync.json file in each user's own hidden app-data folder. We
 never see or host anyone's deck/collection data. The client ID itself is
 public by design — Google OAuth client IDs aren't secrets — but it's
 masked in the UI by default anyway.
+
+
+LEGAL / COPYRIGHT
+------------------
+
+TCG Vault is an unofficial, non-commercial fan project. It is not
+affiliated with, endorsed by, sponsored by, or approved by Bandai,
+Bandai Namco, Bushiroad, or any other rights holder for the Gundam Card
+Game or the One Piece Card Game.
+
+"Gundam Card Game," "GUNDAM," "Mobile Suit Gundam," "One Piece Card
+Game," and "ONE PIECE" are trademarks of their respective owners. All
+card names, card text, artwork, images, and related game content shown
+in this app are the property of their respective copyright and
+trademark holders (including Bandai Namco Entertainment, Bandai
+Namco Filmworks, Sunrise, Shueisha, Toei Animation, and Bushiroad, as
+applicable) and are used here for identification and reference purposes
+only, under fair use, in a non-commercial fan database and deck-building
+tool.
+
+Card data is sourced from third-party community APIs (gcg-api.com,
+optcgapi.com) and market pricing from TCGPlayer via the tcgcsv.com
+mirror, credited above. No ownership over any card content, artwork, or
+game rules is claimed by this project or its author.
+
+This app does not display ads, does not sell anything, and does not
+charge for access. It's provided "as is," free of charge, for personal
+collection tracking and deck building by fans of the games.
+
+If you are a rights holder with a concern about content in this
+project, please open an issue on the GitHub repository and it will be
+addressed promptly.
