@@ -360,13 +360,26 @@ function hydrateRemoteCards(){
   });
 }
 function officialGundamImageCandidates(id){
+  var scrydexIds = [id];
+  if(/_p\d+$/i.test(id)){
+    scrydexIds.push(id.replace(/_p\d+$/i, ''));
+  }
+  scrydexIds.push(id + 'A');
+  scrydexIds.push('BETA-' + id);
+  scrydexIds.push('BETA-' + id + 'A');
+  var scrydexUrls = [];
+  scrydexIds.forEach(function(scrydexId){
+    scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/large');
+    scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/medium');
+  });
   return [
     './gundam-images/' + id + '.webp',
+  ].concat(scrydexUrls, [
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715'
-  ];
+  ]);
 }
 function gundamStarterSupplement(id, number, setCode, setName, rarity, name, color, cost, level, ap, hp, zone, traits, link, text){
   var urls = officialGundamImageCandidates(id);
