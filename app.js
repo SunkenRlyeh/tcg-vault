@@ -306,7 +306,7 @@ function hydrateRemoteCards(){
 }
 
 // ---------- App state ----------
-var currentGame = 'onepiece';
+var currentGame = 'gundam';
 var currentTab = 'browse';
 var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var deckSearchTerm = '';
