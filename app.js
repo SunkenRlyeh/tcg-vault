@@ -11,6 +11,12 @@ var escapeAttr = escapeHtml;
 function uniqSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort(); }
 function numOrInf(v){ var n=parseInt(v,10); return isNaN(n)?999:n; }
 
+// Create an OAuth Web client in Google Cloud and put its client ID here.
+// The ID is public by design; do not put API keys or client secrets in this app.
+var GOOGLE_CLIENT_ID = window.TCG_VAULT_GOOGLE_CLIENT_ID || '';
+var GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+var SYNC_FILE_NAME = 'tcg-vault-sync.json';
+
 function normalizeImageUrl(url){
   if(!url) return url;
   // The official Gundam site now emits cache-buster URLs as "?260715=".
@@ -77,7 +83,8 @@ function defaultState(){
   return {
     collection: { onepiece:{}, gundam:{} },
     decks: { onepiece:[], gundam:[] },
-    activeDeck: { onepiece:null, gundam:null }
+    activeDeck: { onepiece:null, gundam:null },
+    sync: { auto:false, updatedAt:new Date().toISOString(), lastSyncAt:null }
   };
 }
 var state;
@@ -87,13 +94,40 @@ try {
 state.collection = state.collection || { onepiece:{}, gundam:{} };
 state.decks = state.decks || { onepiece:[], gundam:[] };
 state.activeDeck = state.activeDeck || { onepiece:null, gundam:null };
+state.sync = state.sync || {};
+state.sync.auto = !!state.sync.auto;
+state.sync.updatedAt = state.sync.updatedAt || new Date().toISOString();
+state.sync.lastSyncAt = state.sync.lastSyncAt || null;
 state.decks.onepiece = state.decks.onepiece || [];
 state.decks.gundam = state.decks.gundam || [];
 state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
 state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; deck.allowExtraColors = !!deck.allowExtraColors; });
 
-function saveState(){
+function normalizeLoadedState(next){
+  next = next || defaultState();
+  next.collection = next.collection || { onepiece:{}, gundam:{} };
+  next.collection.onepiece = next.collection.onepiece || {};
+  next.collection.gundam = next.collection.gundam || {};
+  next.decks = next.decks || { onepiece:[], gundam:[] };
+  next.decks.onepiece = next.decks.onepiece || [];
+  next.decks.gundam = next.decks.gundam || [];
+  next.activeDeck = next.activeDeck || { onepiece:null, gundam:null };
+  next.sync = next.sync || {};
+  next.sync.auto = !!next.sync.auto;
+  next.sync.updatedAt = next.sync.updatedAt || new Date().toISOString();
+  next.sync.lastSyncAt = next.sync.lastSyncAt || null;
+  next.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
+  next.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; deck.allowExtraColors = !!deck.allowExtraColors; });
+  return next;
+}
+state = normalizeLoadedState(state);
+
+function saveState(options){
+  options = options || {};
+  if(!options.skipUpdatedAt && state.sync) state.sync.updatedAt = new Date().toISOString();
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){ /* storage full or unavailable */ }
+  if(!options.skipSync) scheduleAutoSync();
+  renderSyncStatus();
 }
 
 // ---------- Card index ----------
@@ -728,6 +762,197 @@ function imageUrlsForCard(cardOrUrl){
     seen[u] = true;
     return true;
   });
+}
+
+// ---------- Google Drive appDataFolder sync ----------
+var syncRuntime = { tokenClient:null, accessToken:null, fileId:null, busy:false, timer:null, status:'Google sync is not connected.' };
+function googleSyncConfigured(){
+  return !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.indexOf('apps.googleusercontent.com') !== -1);
+}
+function renderSyncStatus(){
+  var status = document.getElementById('sync-status');
+  var auto = document.getElementById('sync-auto');
+  if(!status || !auto) return;
+  auto.checked = !!(state.sync && state.sync.auto);
+  if(!googleSyncConfigured()){
+    status.textContent = 'Google sync needs a Google OAuth Client ID in app.js before testers can connect.';
+    return;
+  }
+  status.textContent = syncRuntime.status || (syncRuntime.accessToken ? 'Google sync connected.' : 'Google sync is not connected.');
+}
+function setSyncStatus(msg){
+  syncRuntime.status = msg;
+  renderSyncStatus();
+}
+function getGoogleAccessToken(promptMode){
+  return new Promise(function(resolve, reject){
+    if(!googleSyncConfigured()){ reject(new Error('Google OAuth Client ID is not configured.')); return; }
+    if(!window.google || !google.accounts || !google.accounts.oauth2){
+      reject(new Error('Google sign-in library is still loading. Try again in a moment.'));
+      return;
+    }
+    if(!syncRuntime.tokenClient){
+      syncRuntime.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_DRIVE_SCOPE,
+        callback: function(resp){
+          if(resp && resp.access_token){
+            syncRuntime.accessToken = resp.access_token;
+            setSyncStatus('Google sync connected.');
+            resolve(resp.access_token);
+          } else {
+            reject(new Error((resp && resp.error) || 'Google sign-in was cancelled.'));
+          }
+        }
+      });
+    } else {
+      syncRuntime.tokenClient.callback = function(resp){
+        if(resp && resp.access_token){
+          syncRuntime.accessToken = resp.access_token;
+          setSyncStatus('Google sync connected.');
+          resolve(resp.access_token);
+        } else {
+          reject(new Error((resp && resp.error) || 'Google sign-in was cancelled.'));
+        }
+      };
+    }
+    syncRuntime.tokenClient.requestAccessToken({ prompt: promptMode || '' });
+  });
+}
+function ensureGoogleAccess(){
+  if(syncRuntime.accessToken) return Promise.resolve(syncRuntime.accessToken);
+  return getGoogleAccessToken('consent');
+}
+function driveFetch(url, options){
+  options = options || {};
+  options.headers = options.headers || {};
+  options.headers.Authorization = 'Bearer ' + syncRuntime.accessToken;
+  return fetch(url, options).then(function(resp){
+    if(resp.status === 401){
+      syncRuntime.accessToken = null;
+      throw new Error('Google session expired. Sign in again.');
+    }
+    if(!resp.ok){
+      return resp.text().then(function(t){ throw new Error(t || ('Google Drive error ' + resp.status)); });
+    }
+    return resp;
+  });
+}
+function findSyncFile(){
+  var q = encodeURIComponent("name='" + SYNC_FILE_NAME.replace(/'/g, "\\'") + "' and trashed=false");
+  return driveFetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=' + q + '&fields=files(id,name,modifiedTime)').then(function(resp){
+    return resp.json();
+  }).then(function(data){
+    var file = data.files && data.files[0];
+    syncRuntime.fileId = file ? file.id : null;
+    return file || null;
+  });
+}
+function syncPayload(){
+  return {
+    app: 'tcg-vault',
+    version: 1,
+    savedAt: state.sync.updatedAt,
+    state: state
+  };
+}
+function createSyncFile(json){
+  var boundary = 'tcgvault_' + Date.now();
+  var body = '--' + boundary + '\r\n' +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify({ name:SYNC_FILE_NAME, parents:['appDataFolder'], mimeType:'application/json' }) + '\r\n' +
+    '--' + boundary + '\r\n' +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    json + '\r\n--' + boundary + '--';
+  return driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method:'POST',
+    headers:{ 'Content-Type':'multipart/related; boundary=' + boundary },
+    body:body
+  }).then(function(resp){ return resp.json(); }).then(function(data){ syncRuntime.fileId = data.id; });
+}
+function updateSyncFile(json){
+  return driveFetch('https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(syncRuntime.fileId) + '?uploadType=media', {
+    method:'PATCH',
+    headers:{ 'Content-Type':'application/json' },
+    body:json
+  });
+}
+function uploadLocalState(){
+  if(syncRuntime.busy) return Promise.resolve();
+  syncRuntime.busy = true;
+  setSyncStatus('Uploading this device to Google Drive...');
+  var json = JSON.stringify(syncPayload());
+  return findSyncFile().then(function(file){
+    return file ? updateSyncFile(json) : createSyncFile(json);
+  }).then(function(){
+    state.sync.lastSyncAt = new Date().toISOString();
+    saveState({ skipUpdatedAt:true, skipSync:true });
+    setSyncStatus('Uploaded to Google Drive.');
+    toast('Uploaded sync backup');
+  }).catch(function(err){
+    setSyncStatus(err.message || 'Google sync upload failed.');
+    toast('Google sync upload failed');
+  }).then(function(){ syncRuntime.busy = false; });
+}
+function downloadRemotePayload(){
+  return findSyncFile().then(function(file){
+    if(!file) return null;
+    return driveFetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id) + '?alt=media').then(function(resp){
+      return resp.json();
+    });
+  });
+}
+function applyRemotePayload(payload){
+  var next = payload && (payload.state || payload);
+  if(!next || !next.collection || !next.decks) throw new Error('Google backup did not look like TCG Vault data.');
+  state = normalizeLoadedState(next);
+  state.sync.lastSyncAt = new Date().toISOString();
+  saveState({ skipUpdatedAt:true, skipSync:true });
+  renderFilterOptions();
+  renderCurrentView();
+}
+function downloadRemoteState(){
+  if(syncRuntime.busy) return Promise.resolve();
+  syncRuntime.busy = true;
+  setSyncStatus('Downloading backup from Google Drive...');
+  return downloadRemotePayload().then(function(payload){
+    if(!payload){ setSyncStatus('No Google Drive backup found.'); toast('No sync backup found'); return; }
+    applyRemotePayload(payload);
+    setSyncStatus('Downloaded backup from Google Drive.');
+    toast('Downloaded sync backup');
+  }).catch(function(err){
+    setSyncStatus(err.message || 'Google sync download failed.');
+    toast('Google sync download failed');
+  }).then(function(){ syncRuntime.busy = false; });
+}
+function syncNow(){
+  if(syncRuntime.busy) return Promise.resolve();
+  syncRuntime.busy = true;
+  setSyncStatus('Checking Google Drive backup...');
+  return downloadRemotePayload().then(function(payload){
+    if(!payload){
+      syncRuntime.busy = false;
+      return uploadLocalState();
+    }
+    var remoteTime = Date.parse(payload.savedAt || (payload.state && payload.state.sync && payload.state.sync.updatedAt) || 0) || 0;
+    var localTime = Date.parse(state.sync.updatedAt || 0) || 0;
+    syncRuntime.busy = false;
+    if(remoteTime > localTime) return downloadRemoteState();
+    if(localTime > remoteTime) return uploadLocalState();
+    state.sync.lastSyncAt = new Date().toISOString();
+    saveState({ skipUpdatedAt:true, skipSync:true });
+    setSyncStatus('Already synced with Google Drive.');
+    return null;
+  }).catch(function(err){
+    syncRuntime.busy = false;
+    setSyncStatus(err.message || 'Google sync failed.');
+    toast('Google sync failed');
+  });
+}
+function scheduleAutoSync(){
+  if(!state.sync || !state.sync.auto || !syncRuntime.accessToken) return;
+  clearTimeout(syncRuntime.timer);
+  syncRuntime.timer = setTimeout(function(){ syncNow(); }, 1800);
 }
 function setImageWithFallback(el, urls, name){
   var index = 0;
@@ -1387,6 +1612,44 @@ document.getElementById('collection-search').addEventListener('input', renderCol
 document.getElementById('collection-deck-filter').addEventListener('change', renderCollectionView);
 document.getElementById('cache-all-btn').addEventListener('click', cacheAllRelevantImages);
 document.getElementById('cache-clear-btn').addEventListener('click', clearImageCache);
+document.getElementById('sync-signin').addEventListener('click', function(){
+  getGoogleAccessToken('consent').then(function(){ return syncNow(); }).catch(function(err){
+    setSyncStatus(err.message || 'Google sign-in failed.');
+    toast('Google sign-in failed');
+  });
+});
+document.getElementById('sync-now').addEventListener('click', function(){
+  ensureGoogleAccess().then(syncNow).catch(function(err){
+    setSyncStatus(err.message || 'Google sync failed.');
+    toast('Google sync failed');
+  });
+});
+document.getElementById('sync-upload').addEventListener('click', function(){
+  ensureGoogleAccess().then(uploadLocalState).catch(function(err){
+    setSyncStatus(err.message || 'Google upload failed.');
+    toast('Google upload failed');
+  });
+});
+document.getElementById('sync-download').addEventListener('click', function(){
+  if(!confirm('Replace this device with the Google Drive backup?')) return;
+  ensureGoogleAccess().then(downloadRemoteState).catch(function(err){
+    setSyncStatus(err.message || 'Google download failed.');
+    toast('Google download failed');
+  });
+});
+document.getElementById('sync-auto').addEventListener('change', function(e){
+  state.sync.auto = e.target.checked;
+  saveState({ skipUpdatedAt:true, skipSync:true });
+  if(state.sync.auto){
+    ensureGoogleAccess().then(syncNow).catch(function(err){
+      setSyncStatus(err.message || 'Google auto-sync setup failed.');
+      toast('Google auto-sync setup failed');
+    });
+  } else {
+    clearTimeout(syncRuntime.timer);
+    setSyncStatus(syncRuntime.accessToken ? 'Auto-sync is off. Google sync connected.' : 'Auto-sync is off.');
+  }
+});
 document.getElementById('modal-overlay').addEventListener('click', function(e){
   if(e.target.id === 'modal-overlay') closeModal();
 });
@@ -1395,6 +1658,7 @@ document.getElementById('modal-overlay').addEventListener('click', function(e){
 function init(){
   renderFilterOptions();
   renderCurrentView();
+  renderSyncStatus();
   hydrateRemoteCards();
   if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
     navigator.serviceWorker.register('sw.js').catch(function(){});

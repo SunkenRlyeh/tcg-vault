@@ -114,6 +114,18 @@
     </select>
   </div>
   <div id="collection-summary" class="collection-summary"></div>
+  <div class="sync-panel">
+    <div>
+      <div id="sync-status" class="sync-status">Google sync is not connected.</div>
+      <label class="sync-toggle"><input id="sync-auto" type="checkbox"> Auto-sync after sign-in</label>
+    </div>
+    <div class="sync-actions">
+      <button id="sync-signin" class="text-btn">Sign in with Google</button>
+      <button id="sync-now" class="text-btn">Sync now</button>
+      <button id="sync-upload" class="text-btn">Upload this device</button>
+      <button id="sync-download" class="text-btn">Download backup</button>
+    </div>
+  </div>
   <div class="offline-panel">
     <div id="cache-status" class="cache-status">Checking offline image cache...</div>
     <div class="offline-actions">
@@ -144,6 +156,7 @@
 
 <script src="onepiece_cards.js"></script>
 <script src="gundam_cards.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="app.js"></script>
 </body>
 </html>

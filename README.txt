@@ -17,6 +17,9 @@ WHAT'S INSIDE
 - Fast deck controls: main-deck cards support quick +/-1 through +/-4;
   DON!!, resources, and tokens also support +10 shortcuts. Tokens have no
   deck-limit check for now.
+- Optional Google Drive sync: each tester can sign in with Google and store
+  their TCG Vault backup in their own hidden Drive app data folder. The app
+  does not need a server or database for tester account data.
 
 CARD DATA INCLUDED
 - One Piece TCG: the full run OP-01 through OP-16, plus Extra Boosters
@@ -72,3 +75,19 @@ whichever device/browser you use the app in — they aren't synced between
 devices or between opening the file locally vs. the hosted GitHub Pages
 version (those count as different origins to the browser). Use "Export
 list" in the deck builder to back up a deck as text.
+
+GOOGLE SYNC SETUP
+Google sync is wired in, but it needs a Google OAuth Web Client ID before it
+can be used by testers:
+  1. In Google Cloud Console, create or choose a project.
+  2. Enable the Google Drive API.
+  3. Configure the OAuth consent screen.
+  4. Create an OAuth Client ID with application type "Web application".
+  5. Add https://sunkenrlyeh.github.io as an authorized JavaScript origin.
+  6. Put that public client ID into GOOGLE_CLIENT_ID near the top of app.js.
+
+The app requests only the Drive app-data scope:
+  https://www.googleapis.com/auth/drive.appdata
+
+That stores tcg-vault-sync.json in each user's hidden Google Drive
+appDataFolder. You do not receive or host their deck/collection data.
