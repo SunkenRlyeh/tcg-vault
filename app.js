@@ -11,9 +11,14 @@ var escapeAttr = escapeHtml;
 function uniqSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort(); }
 function numOrInf(v){ var n=parseInt(v,10); return isNaN(n)?999:n; }
 
-// Configure this in google-config.js. The ID is public by design; do not put
-// API keys, client secrets, or tokens in this app.
-var GOOGLE_CLIENT_ID = window.TCG_VAULT_GOOGLE_CLIENT_ID || '';
+// OAuth Web Client IDs are public by design; do not put API keys, client
+// secrets, or tokens in this app. A locally saved ID wins over google-config.js.
+var GOOGLE_CLIENT_STORAGE_KEY = 'tcgvault_google_client_id';
+function getStoredGoogleClientId(){
+  try { return (localStorage.getItem(GOOGLE_CLIENT_STORAGE_KEY) || '').trim(); }
+  catch(e){ return ''; }
+}
+var GOOGLE_CLIENT_ID = getStoredGoogleClientId() || window.TCG_VAULT_GOOGLE_CLIENT_ID || '';
 var GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 var SYNC_FILE_NAME = 'tcg-vault-sync.json';
 
@@ -866,13 +871,23 @@ var syncRuntime = { tokenClient:null, accessToken:null, fileId:null, busy:false,
 function googleSyncConfigured(){
   return !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.indexOf('apps.googleusercontent.com') !== -1);
 }
+function maskClientId(id){
+  id = String(id || '');
+  if(!id) return '';
+  if(id.length <= 16) return id.replace(/.(?=.{4})/g, '*');
+  return id.slice(0, 8) + '********' + id.slice(-12);
+}
 function renderSyncStatus(){
   var status = document.getElementById('sync-status');
   var auto = document.getElementById('sync-auto');
+  var clientInput = document.getElementById('sync-client-id');
   if(!status || !auto) return;
   auto.checked = !!(state.sync && state.sync.auto);
+  if(clientInput && document.activeElement !== clientInput && !clientInput.value){
+    clientInput.placeholder = GOOGLE_CLIENT_ID ? maskClientId(GOOGLE_CLIENT_ID) : 'Google OAuth Client ID';
+  }
   if(!googleSyncConfigured()){
-    status.textContent = 'Google sync is not configured yet. Add your OAuth Web Client ID to google-config.js, then hard refresh.';
+    status.textContent = 'Google sync is not configured yet. Paste your OAuth Web Client ID here and save it.';
     return;
   }
   status.textContent = syncRuntime.status || (syncRuntime.accessToken ? 'Google sync connected.' : 'Google sync is not connected.');
@@ -883,7 +898,7 @@ function setSyncStatus(msg){
 }
 function getGoogleAccessToken(promptMode){
   return new Promise(function(resolve, reject){
-    if(!googleSyncConfigured()){ reject(new Error('Google OAuth Client ID is not configured in google-config.js.')); return; }
+    if(!googleSyncConfigured()){ reject(new Error('Google OAuth Client ID is not configured. Paste it into the sync panel and save it.')); return; }
     if(!window.google || !google.accounts || !google.accounts.oauth2){
       reject(new Error('Google sign-in library is still loading. Try again in a moment.'));
       return;
@@ -1803,6 +1818,52 @@ document.getElementById('sync-signin').addEventListener('click', function(){
     setSyncStatus(err.message || 'Google sign-in failed.');
     toast('Google sign-in failed');
   });
+});
+document.getElementById('sync-save-client').addEventListener('click', function(){
+  var input = document.getElementById('sync-client-id');
+  var id = input ? input.value.trim() : '';
+  if(!id || id.indexOf('apps.googleusercontent.com') === -1){
+    setSyncStatus('That does not look like a Google OAuth Web Client ID.');
+    toast('Check the client ID');
+    return;
+  }
+  try { localStorage.setItem(GOOGLE_CLIENT_STORAGE_KEY, id); } catch(e){ /* ignore */ }
+  GOOGLE_CLIENT_ID = id;
+  syncRuntime.tokenClient = null;
+  syncRuntime.accessToken = null;
+  if(input){ input.value = ''; input.type = 'password'; input.placeholder = maskClientId(id); }
+  var toggle = document.getElementById('sync-toggle-client');
+  if(toggle) toggle.textContent = 'Show';
+  setSyncStatus('Google OAuth Client ID saved on this device.');
+  toast('Google sync ID saved');
+});
+document.getElementById('sync-toggle-client').addEventListener('click', function(){
+  var input = document.getElementById('sync-client-id');
+  var btn = document.getElementById('sync-toggle-client');
+  if(!input) return;
+  if(input.type === 'password'){
+    input.type = 'text';
+    if(!input.value) input.value = GOOGLE_CLIENT_ID || '';
+    if(btn) btn.textContent = 'Hide';
+  } else {
+    input.type = 'password';
+    input.value = '';
+    input.placeholder = GOOGLE_CLIENT_ID ? maskClientId(GOOGLE_CLIENT_ID) : 'Google OAuth Client ID';
+    if(btn) btn.textContent = 'Show';
+  }
+});
+document.getElementById('sync-clear-client').addEventListener('click', function(){
+  if(!confirm('Clear the saved Google OAuth Client ID from this device?')) return;
+  try { localStorage.removeItem(GOOGLE_CLIENT_STORAGE_KEY); } catch(e){ /* ignore */ }
+  GOOGLE_CLIENT_ID = window.TCG_VAULT_GOOGLE_CLIENT_ID || '';
+  syncRuntime.tokenClient = null;
+  syncRuntime.accessToken = null;
+  var input = document.getElementById('sync-client-id');
+  if(input){ input.value = ''; input.type = 'password'; input.placeholder = GOOGLE_CLIENT_ID ? maskClientId(GOOGLE_CLIENT_ID) : 'Google OAuth Client ID'; }
+  var toggle = document.getElementById('sync-toggle-client');
+  if(toggle) toggle.textContent = 'Show';
+  setSyncStatus(GOOGLE_CLIENT_ID ? 'Using the client ID from google-config.js.' : 'Google OAuth Client ID cleared from this device.');
+  toast('Google sync ID cleared');
 });
 document.getElementById('sync-now').addEventListener('click', function(){
   ensureGoogleAccess().then(syncNow).catch(function(err){

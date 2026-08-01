@@ -160,6 +160,12 @@
   <div class="sync-panel">
     <div>
       <div id="sync-status" class="sync-status">Google sync is not connected.</div>
+      <div class="sync-config">
+        <input id="sync-client-id" type="password" placeholder="Google OAuth Client ID" autocomplete="off" spellcheck="false">
+        <button id="sync-save-client" class="text-btn">Save ID</button>
+        <button id="sync-toggle-client" class="text-btn" type="button">Show</button>
+        <button id="sync-clear-client" class="text-btn danger" type="button">Clear ID</button>
+      </div>
       <label class="sync-toggle"><input id="sync-auto" type="checkbox"> Auto-sync after sign-in</label>
     </div>
     <div class="sync-actions">

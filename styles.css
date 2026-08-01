@@ -199,6 +199,14 @@ button, input, select { font-family: inherit; }
   align-items: flex-start; flex-wrap: wrap;
 }
 .sync-status { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.sync-config {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;
+}
+.sync-config input {
+  width: min(360px, 100%); min-width: 220px; flex: 1;
+  background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px;
+}
 .sync-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
 .sync-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .collection-row {

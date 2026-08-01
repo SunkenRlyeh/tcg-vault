@@ -85,11 +85,15 @@ can be used by testers:
   3. Configure the OAuth consent screen.
   4. Create an OAuth Client ID with application type "Web application".
   5. Add https://sunkenrlyeh.github.io as an authorized JavaScript origin.
-  6. Paste that public client ID into google-config.js:
+  6. Paste that public client ID into the masked Google OAuth Client ID field
+     in the Collection tab sync panel, then press Save ID.
+
+Optional repo-wide default:
+  Paste that same public client ID into google-config.js:
        window.TCG_VAULT_GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
 
-After publishing the config change, hard refresh the app once on each device
-so the service worker picks up the new file.
+The in-app setting is saved only in that browser. It is hidden by default in
+the sync panel, but the OAuth Web Client ID is still public by Google design.
 
 The app requests only the Drive app-data scope:
   https://www.googleapis.com/auth/drive.appdata
