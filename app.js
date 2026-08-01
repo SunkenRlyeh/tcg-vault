@@ -630,6 +630,14 @@ function setCollectionPrice(game, id, price){
   state.collection[game][id].price = isNaN(price) ? null : price;
   saveState();
 }
+// Market price used for value totals: the user's own manual price for that
+// exact printing takes precedence; otherwise fall back to the card's market
+// price baked into the card database (TCGPlayer-sourced market data).
+function effectivePrice(game, id, card){
+  var e = state.collection[game] && state.collection[game][id];
+  if(e && e.price != null) return e.price;
+  return (card && card.price != null) ? card.price : null;
+}
 function ownedQtyByNumber(game, num){
   var idx = getIndex(game);
   var variants = idx.byNumber[num] || [];
@@ -935,6 +943,30 @@ function renderCurve(title, buckets){
         '<span class="curve-count">' + count + '</span></div>';
     }).join('') +
   '</div>';
+}
+function renderDeckValueSummary(game, deck, idx){
+  var container = document.getElementById('deck-value-summary');
+  if(!container){
+    container = document.createElement('div');
+    container.id = 'deck-value-summary';
+    container.className = 'collection-summary';
+    var statsEl = document.getElementById('deck-stats');
+    if(statsEl && statsEl.parentNode) statsEl.parentNode.insertBefore(container, statsEl);
+  }
+  var total = 0, unpriced = 0, count = 0;
+  if(game === 'onepiece' && deck.leader){
+    var lc = (idx.byNumber[deck.leader]||[])[0];
+    if(lc){ count++; if(lc.price != null) total += lc.price; else unpriced++; }
+  }
+  var entries = deckCardEntries(game, deck);
+  entries.forEach(function(e){
+    count += e.qty;
+    if(e.card && e.card.price != null) total += e.qty * e.card.price;
+    else unpriced += e.qty;
+  });
+  container.innerHTML =
+    '<div class="summary-stat"><div class="val">$' + total.toFixed(2) + '</div><div class="lbl">Deck value' + (unpriced ? (' (' + unpriced + ' unpriced)') : '') + '</div></div>' +
+    '<div class="summary-stat"><div class="val">' + count + '</div><div class="lbl">Priced cards counted</div></div>';
 }
 function renderDeckStats(game, deck){
   var el = document.getElementById('deck-stats');
@@ -1455,6 +1487,7 @@ function openCardModal(c){
           (c.rarity ? '<span class="tag">' + escapeHtml(c.rarity) + '</span>' : '') +
           (c.type ? '<span class="tag">' + escapeHtml(c.type) + '</span>' : '') +
           (c.color ? '<span class="tag">' + escapeHtml(c.color) + '</span>' : '') +
+          (c.price != null ? '<span class="tag">Market $' + c.price.toFixed(2) + '</span>' : '') +
         '</div>' +
         '<div class="tag-row">' + statTags(c) + '</div>' +
       '</div>' +
@@ -1651,6 +1684,7 @@ function renderDeckView(){
   var legEl = document.getElementById('deck-legality');
   renderLegalityPanel(game, deck, errs, legEl, idx);
   renderDeckStats(game, deck);
+  renderDeckValueSummary(game, deck, idx);
 
   var leaderSlot = document.getElementById('deck-leader-slot');
   var resourceSection = document.getElementById('deck-resource-section');
@@ -1984,6 +2018,7 @@ function renderCollectionView(){
       row.innerHTML =
         '<div class="cthumb"></div>' +
         '<div class="cname">' + escapeHtml(c.name) + ' <span class="dsub">' + escapeHtml(c.rarity||'') + ' &middot; ' + escapeHtml(c.id) + '</span></div>' +
+        (function(){ var ep = effectivePrice(game, c.id, c); return '<div style="opacity:.7;font-size:12px">' + (ep != null ? ('$' + ep.toFixed(2) + ' ea &middot; $' + (ep*owned).toFixed(2) + ' total') : 'price N/A') + '</div>'; })() +
         '<div class="stepper"><button data-act="minus">-</button><span>' + owned + '</span><button data-act="plus">+</button></div>';
       lazyLoadImage(row.querySelector('.cthumb'), c, c.name);
       row.querySelector('[data-act="minus"]').onclick = function(){ setCollectionQty(game, c.id, collectionQty(game,c.id)-1); renderCollectionView(); };
@@ -1994,18 +2029,19 @@ function renderCollectionView(){
   renderCacheStatus();
 }
 function renderCollectionSummary(game, idx){
-  var totalOwned = 0, uniqueOwned = 0, totalValue = 0;
+  var totalOwned = 0, uniqueOwned = 0, totalValue = 0, unpriced = 0;
   idx.cards.forEach(function(c){
     var e = state.collection[game][c.id];
     if(e && e.qty){
       totalOwned += e.qty;
       uniqueOwned++;
-      if(e.price) totalValue += e.qty * e.price;
+      var ep = effectivePrice(game, c.id, c);
+      if(ep != null) totalValue += e.qty * ep; else unpriced += e.qty;
     }
   });
   document.getElementById('collection-summary').innerHTML =
     '<div class="summary-stat"><div class="val">' + totalOwned + '</div><div class="lbl">Cards owned</div></div>' +
-    '<div class="summary-stat"><div class="val">$' + totalValue.toFixed(2) + '</div><div class="lbl">Estimated value</div></div>' +
+    '<div class="summary-stat"><div class="val">$' + totalValue.toFixed(2) + '</div><div class="lbl">Estimated value' + (unpriced ? (' (' + unpriced + ' unpriced)') : '') + '</div></div>' +
     '<div class="summary-stat"><div class="val">' + uniqueOwned + '</div><div class="lbl">Distinct printings</div></div>';
 }
 
