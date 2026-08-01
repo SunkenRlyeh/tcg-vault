@@ -30,8 +30,7 @@ CARD DATA INCLUDED
 This is real, current card data, not placeholders.
 
 OFFLINE CARD IMAGES — HOW IT WORKS
-Per your request, card art is NOT bulk-downloaded for the whole library
-(that would be a huge, mostly-wasted download). Instead:
+
   - Whenever you add a card to your trade binder (Collection tab) or to a
     deck, that specific printing's image is automatically saved for offline
     use — including alt arts, since each one is tracked separately.
@@ -42,11 +41,6 @@ Per your request, card art is NOT bulk-downloaded for the whole library
     browser's Cache Storage API requires a secure origin. Opened as a plain
     local file, browsing/search/decks/collection still work fully offline,
     but the selective image caching feature needs HTTPS.
-
-HOW TO USE IT — GITHUB PAGES (what you asked for)
-GitHub Pages hosts this folder over HTTPS for free, which unlocks: installable
-"Add to Home Screen" behavior, the service worker (offline app shell), and
-the selective offline image caching described above.
 
 This app is already deployed and live at:
   https://sunkenrlyeh.github.io/tcg-vault/
@@ -67,8 +61,6 @@ To redeploy from scratch instead:
      branch (usually main) and root folder, then Save.
   4. GitHub gives you a URL like https://<username>.github.io/<repo>/.
 
-If you'd rather test locally first: run `python3 -m http.server` from this
-folder and open the printed address on your phone (same wifi network).
 
 YOUR DATA
 Your collection and decks are saved in the browser's local storage on
