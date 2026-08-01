@@ -957,7 +957,12 @@ function tcgplayerMassEntryUrl(game, items){
     var setCode = it.card.set_code || '';
     return it.qty + ' ' + it.card.name + (setCode ? ' [' + setCode + ']' : '') + (num ? ' ' + num : '');
   });
-  return 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(lines.join('\n')) +
+  // TCGPlayer's Mass Entry page expects multiple items joined with a literal
+  // "||" in the c= param - NOT a newline. Its own "Create a Shareable Link"
+  // button confirms this (verified by generating one and inspecting the
+  // resulting URL). A newline-joined c= silently fails to populate the items
+  // box at all (no error shown), which is what caused "Buy all" to error out.
+  return 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(lines.join('||')) +
     '&productline=' + encodeURIComponent(productLine);
 }
 function tcgplayerProductSearchUrl(card){
