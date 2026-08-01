@@ -356,7 +356,6 @@ function renderCacheStatus(){
 function lazyLoadImage(el, url, name){
   if(!url) return;
   var img = new Image();
-  img.loading = 'lazy';
   img.alt = name || '';
   img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
   img.onerror = function(){ /* offline or unreachable - keep text fallback */ };

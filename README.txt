@@ -45,18 +45,24 @@ GitHub Pages hosts this folder over HTTPS for free, which unlocks: installable
 "Add to Home Screen" behavior, the service worker (offline app shell), and
 the selective offline image caching described above.
 
-Steps:
+This app is already deployed and live at:
+  https://sunkenrlyeh.github.io/tcg-vault/
+Source repo: https://github.com/SunkenRlyeh/tcg-vault
+
+All files sit flat in the repo root (no data/ or icons/ subfolders) —
+index.html, styles.css, app.js, onepiece_cards.js, gundam_cards.js,
+manifest.json, sw.js, icon-192.png, icon-512.png — since GitHub's web
+upload doesn't reliably preserve nested folders when dragging files in.
+Open the live URL above on your phone. After the first load, "Add to Home
+Screen" will be available, and everything you've cached will work offline.
+
+To redeploy from scratch instead:
   1. Create a new GitHub repository (public repos get free Pages hosting).
-  2. Upload every file in this folder, keeping the folder structure intact
-     (index.html, styles.css, app.js, manifest.json, sw.js, data/, icons/).
-     Easiest way: on the repo's main page, use "Add file" > "Upload files",
-     then drag this whole folder in — GitHub preserves the data/ and icons/
-     subfolders when you drop a folder in a modern browser.
+  2. Upload every file in this folder as flat files (no subfolders) via
+     "Add file" > "Upload files".
   3. Go to Settings > Pages, set Source to "Deploy from a branch", pick the
      branch (usually main) and root folder, then Save.
-  4. GitHub gives you a URL like https://<username>.github.io/<repo>/ —
-     open that on your phone. After the first load, "Add to Home Screen"
-     will be available, and everything you've cached will work offline.
+  4. GitHub gives you a URL like https://<username>.github.io/<repo>/.
 
 If you'd rather test locally first: run `python3 -m http.server` from this
 folder and open the printed address on your phone (same wifi network).
