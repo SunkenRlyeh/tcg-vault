@@ -964,6 +964,26 @@ function renderDeckValueSummary(game, deck, idx){
     if(e.card && e.card.price != null) total += e.qty * e.card.price;
     else unpriced += e.qty;
   });
+  if(game === 'onepiece'){
+    Object.keys(deck.dons || {}).forEach(function(num){
+      var qty = deck.dons[num];
+      var dc = (idx.byNumber[num]||[])[0];
+      count += qty;
+      if(dc && dc.price != null) total += qty * dc.price;
+      else unpriced += qty;
+    });
+  }
+  if(game === 'gundam'){
+    ['resources','exResources','exBases'].forEach(function(bucket){
+      Object.keys(deck[bucket] || {}).forEach(function(num){
+        var qty = deck[bucket][num];
+        var bc = (idx.byNumber[num]||[])[0];
+        count += qty;
+        if(bc && bc.price != null) total += qty * bc.price;
+        else unpriced += qty;
+      });
+    });
+  }
   container.innerHTML =
     '<div class="summary-stat"><div class="val">$' + total.toFixed(2) + '</div><div class="lbl">Deck value' + (unpriced ? (' (' + unpriced + ' unpriced)') : '') + '</div></div>' +
     '<div class="summary-stat"><div class="val">' + count + '</div><div class="lbl">Priced cards counted</div></div>';
@@ -1724,6 +1744,17 @@ function renderDeckView(){
       var key = e.key, num = e.num, qty = e.qty;
       var c = e.card;
       var variants = c ? (idx.byNumber[c.number] || []) : [];
+      var addPrintingControl = '';
+      if(variants.length > 1){
+        addPrintingControl = '<div class="deck-add-printing" style="display:flex;gap:4px;align-items:center;margin-top:4px;">' +
+          '<select class="deck-add-printing-select" data-act="add-printing">' + variants.map(function(v){
+            var vKey2 = deckCardKey(v);
+            var label2 = (v.rarity || 'Printing') + ' - ' + (v.set_code || '') + (v.id !== v.number ? ' - ' + v.id : '');
+            return '<option value="' + escapeAttr(vKey2) + '">' + escapeHtml(label2) + '</option>';
+          }).join('') + '</select>' +
+          '<button class="text-btn" data-act="add-printing-btn" type="button">+ copy as separate printing</button>' +
+        '</div>';
+      }
       var variantSelect = '';
       if(variants.length > 1){
         variantSelect = '<select class="deck-printing-select" data-act="printing">' + variants.map(function(v){
@@ -1735,7 +1766,7 @@ function renderDeckView(){
       }
       var row = document.createElement('div');
       row.className = 'deck-row';
-      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div>' + variantSelect + '</div>' +
+      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div>' + variantSelect + addPrintingControl + '</div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
       if(c && c.rarity) row.querySelector('.dsub').innerHTML = escapeHtml(num) + ' &middot; ' + escapeHtml(c.rarity);
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
@@ -1752,6 +1783,17 @@ function renderDeckView(){
           var newCard = cardForDeckKey(idx, newKey);
           if(newCard) cacheImage(newCard.image_url);
           saveState();
+          renderDeckView();
+        };
+      }
+      var addPrintingBtn = row.querySelector('[data-act="add-printing-btn"]');
+      if(addPrintingBtn){
+        var addPrintingSelect = row.querySelector('[data-act="add-printing"]');
+        if(addPrintingSelect) addPrintingSelect.onclick = function(e){ e.stopPropagation(); };
+        addPrintingBtn.onclick = function(e){
+          e.stopPropagation();
+          var targetKey = addPrintingSelect ? addPrintingSelect.value : key;
+          changeDeckQty(game, deck, 'cards', targetKey, 1);
           renderDeckView();
         };
       }
