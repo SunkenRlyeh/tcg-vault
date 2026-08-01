@@ -1,0 +1,15 @@
+{
+  "name": "TCG Vault - Gundam & One Piece Card Database",
+  "short_name": "TCG Vault",
+  "description": "Offline card and deck database for the Gundam Card Game and One Piece TCG",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
