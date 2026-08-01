@@ -1,3 +1,3 @@
-Last price sync: 2026-08-01T06:58:44.421Z
-One Piece: matched 3058/3079, changed 191, fuzzy 2071
-Gundam: matched 1254/1303, changed 106, fuzzy 141
+Last price sync: 2026-08-01T07:04:30.724Z
+One Piece: matched 1119/3079, changed 202, cleared 1960
+Gundam: matched 1123/1303, changed 11, cleared 171
