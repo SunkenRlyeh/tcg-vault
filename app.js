@@ -360,13 +360,57 @@ function renderCacheStatus(){
 }
 
 // ---------- Rendering: shared card tile ----------
+// True lazy loading via IntersectionObserver: only fetch a card image once its
+// tile actually scrolls into (near) view. Rendering a filtered list can create
+// up to 300 tiles at once, and firing an image request for every one of them
+// immediately can look like a burst/DoS to a third-party image host (this is
+// what happened to gundam-gcg.com, which started returning 503s under that
+// load) even though the same burst is fine against a beefier CDN. Loading
+// only what's visible keeps concurrent requests to a small, real number.
+var _lazyObserver = null;
+function getLazyObserver(){
+  if(_lazyObserver) return _lazyObserver;
+  if(typeof IntersectionObserver === 'undefined') return null;
+  _lazyObserver = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(!entry.isIntersecting) return;
+      var el = entry.target;
+      _lazyObserver.unobserve(el);
+      var url = el.getAttribute('data-lazy-url');
+      var name = el.getAttribute('data-lazy-name');
+      el.removeAttribute('data-lazy-url');
+      el.removeAttribute('data-lazy-name');
+      if(!url) return;
+      var img = new Image();
+      img.alt = name || '';
+      img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
+      img.onerror = function(){ /* offline, unreachable, or rate-limited - keep text fallback */ };
+      img.src = url;
+    });
+  }, { rootMargin: '400px 0px', threshold: 0.01 });
+  return _lazyObserver;
+}
 function lazyLoadImage(el, url, name){
   if(!url) return;
-  var img = new Image();
-  img.alt = name || '';
-  img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
-  img.onerror = function(){ /* offline or unreachable - keep text fallback */ };
-  img.src = url;
+  var observer = getLazyObserver();
+  if(!observer){
+    // Fallback for browsers without IntersectionObserver: load immediately.
+    var img = new Image();
+    img.alt = name || '';
+    img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
+    img.onerror = function(){ /* offline or unreachable - keep text fallback */ };
+    img.src = url;
+    return;
+  }
+  el.setAttribute('data-lazy-url', url);
+  el.setAttribute('data-lazy-name', name || '');
+  observer.observe(el);
+}
+function unobserveLazyImages(container){
+  var observer = _lazyObserver;
+  if(!observer || !container) return;
+  var els = container.querySelectorAll('[data-lazy-url]');
+  for(var i=0; i<els.length; i++){ observer.unobserve(els[i]); }
 }
 function statTags(c){
   var tags = [];
@@ -552,6 +596,7 @@ function renderBrowse(){
   var filtered = sortCards(idx.canonical.filter(matchesFilters));
   document.getElementById('result-count').textContent = filtered.length + ' card' + (filtered.length===1?'':'s') + ' (alt arts shown on tap)';
   var grid = document.getElementById('card-grid');
+  unobserveLazyImages(grid);
   grid.innerHTML = '';
   if(filtered.length === 0){
     grid.innerHTML = '<div class="empty-state">No cards match your filters.</div>';
@@ -685,6 +730,7 @@ function renderCollectionView(){
   var deckFilterId = deckSel.value;
 
   var list = document.getElementById('collection-list');
+  unobserveLazyImages(list);
   list.innerHTML = '';
 
   if(deckFilterId){
