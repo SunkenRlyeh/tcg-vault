@@ -216,7 +216,7 @@ button, input, select { font-family: inherit; }
 .sync-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .collection-row {
   display: flex; align-items: center; gap: 10px; background: var(--bg-elev); border: 1px solid var(--border);
-  border-radius: 10px; padding: 8px;
+  border-radius: 10px; padding: 8px; cursor: pointer;
 }
 .collection-row .cname { flex: 1; font-size: 13px; }
 .collection-row .cprice { width: 70px; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text); font-size: 12px; }

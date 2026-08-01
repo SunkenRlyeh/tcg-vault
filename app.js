@@ -2035,8 +2035,9 @@ function renderCollectionView(){
         '<div class="cname">' + escapeHtml(r.card?r.card.name:r.num) + badge + missing + '</div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + r.owned + '</span><button data-act="plus">+</button></div>';
       if(r.card) lazyLoadImage(row.querySelector('.cthumb'), r.card, r.card.name);
-      row.querySelector('[data-act="minus"]').onclick = function(){ adjustOwnedByNumber(game, r.num, -1); renderCollectionView(); };
-      row.querySelector('[data-act="plus"]').onclick = function(){ adjustOwnedByNumber(game, r.num, 1); renderCollectionView(); };
+      if(r.card) row.addEventListener('click', function(){ openCardModal(r.card); });
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); adjustOwnedByNumber(game, r.num, -1); renderCollectionView(); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); adjustOwnedByNumber(game, r.num, 1); renderCollectionView(); };
       list.appendChild(row);
     });
   } else {
@@ -2064,8 +2065,9 @@ function renderCollectionView(){
         (function(){ var ep = effectivePrice(game, c.id, c); return '<div style="opacity:.7;font-size:12px">' + (ep != null ? ('$' + ep.toFixed(2) + ' ea &middot; $' + (ep*owned).toFixed(2) + ' total') : 'price N/A') + '</div>'; })() +
         '<div class="stepper"><button data-act="minus">-</button><span>' + owned + '</span><button data-act="plus">+</button></div>';
       lazyLoadImage(row.querySelector('.cthumb'), c, c.name);
-      row.querySelector('[data-act="minus"]').onclick = function(){ setCollectionQty(game, c.id, collectionQty(game,c.id)-1); renderCollectionView(); };
-      row.querySelector('[data-act="plus"]').onclick = function(){ setCollectionQty(game, c.id, collectionQty(game,c.id)+1); renderCollectionView(); };
+      row.addEventListener('click', function(){ openCardModal(c); });
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); setCollectionQty(game, c.id, collectionQty(game,c.id)-1); renderCollectionView(); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); setCollectionQty(game, c.id, collectionQty(game,c.id)+1); renderCollectionView(); };
       list.appendChild(row);
     });
   }
