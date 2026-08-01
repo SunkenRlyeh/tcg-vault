@@ -198,9 +198,12 @@ function mergeCards(game, incoming){
     if(!c || !c.id) return;
     if(game === 'gundam') c = sanitizeGundamCard(c);
     if(existing[c.id]){
-      if(c.image_url && !existing[c.id].image_url) existing[c.id].image_url = c.image_url;
+      var preferIncomingArt = game === 'gundam' && /^(EXB|EXBP|EXR|EXRP)-/i.test(c.id);
+      if(c.image_url && (!existing[c.id].image_url || preferIncomingArt)) existing[c.id].image_url = c.image_url;
       if(c.image_candidates){
-        existing[c.id].image_candidates = imageUrlsForCard(existing[c.id]).concat(c.image_candidates);
+        existing[c.id].image_candidates = preferIncomingArt
+          ? c.image_candidates.concat(imageUrlsForCard(existing[c.id]))
+          : imageUrlsForCard(existing[c.id]).concat(c.image_candidates);
       }
       return;
     }
@@ -380,10 +383,10 @@ function hydrateRemoteCards(){
 function officialGundamImageCandidates(id){
   var cardListId = GUNDAM_CARDLIST_IMAGE_IDS[String(id || '').toUpperCase()];
   var scrydexIds = [];
-  if(/^EXRP-/i.test(id)){
+  if(/^EXRP-/i.test(id) || /^EXB/i.test(id)){
     // Scrydex currently has real front images for EXRP-001/002 only. Other
-    // EXRP image URLs resolve to a generic card back, which looks like loaded
-    // art to the browser and stops the fallback chain too early.
+    // token image URLs can resolve to a generic card back, which looks like
+    // loaded art to the browser and stops the fallback chain too early.
     if(/^EXRP-001$/i.test(id)) scrydexIds.push('BETA-EXRP-001', 'EXRP-001');
     if(/^EXRP-002$/i.test(id)) scrydexIds.push('EXRP-002');
   } else {
@@ -402,16 +405,20 @@ function officialGundamImageCandidates(id){
   });
   var cardListUrls = cardListId ? ['https://static.gundamcardlist.com/images/cards/' + cardListId + '.jpg'] : [];
   var cardGameSearcherUrls = ['https://cardgamesearcher.com/assets/img/cards/gcg/en/' + id + '.webp'];
-  return [
-    './gundam-images/' + id + '.webp',
-  ].concat(cardListUrls, cardGameSearcherUrls, scrydexUrls, [
+  var officialUrls = /^EXB/i.test(id) || /^EXRP-/i.test(id) ? [] : [
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715'
-  ]);
+  ];
+  return [
+    './gundam-images/' + id + '.webp',
+  ].concat(cardListUrls, cardGameSearcherUrls, scrydexUrls, officialUrls);
 }
 var GUNDAM_CARDLIST_IMAGE_IDS = {
+  'EXB-001':'616680',
+  'EXB-002':'684026',
+  'EXB-003':'707583',
   'EXR-001':'616679',
   'EXR-002':'684025',
   'EXR-004':'707586',
@@ -435,7 +442,31 @@ var GUNDAM_CARDLIST_IMAGE_IDS = {
   'EXRP-011':'680943',
   'EXRP-012':'680944',
   'EXRP-013':'680945',
-  'EXRP-014':'681981'
+  'EXRP-014':'681981',
+  'EXBP-001':'634345',
+  'EXBP-002':'641569',
+  'EXBP-003':'646555',
+  'EXBP-004':'641567',
+  'EXBP-005':'641568',
+  'EXBP-006':'653358',
+  'EXBP-007':'653359',
+  'EXBP-008':'653360',
+  'EXBP-009':'653361',
+  'EXBP-010':'653362',
+  'EXBP-011':'661897',
+  'EXBP-013':'684622',
+  'EXBP-014':'684623',
+  'EXBP-015':'684624',
+  'EXBP-016':'684626',
+  'EXBP-017':'684627',
+  'EXBP-020':'691174',
+  'EXBP-021':'691176',
+  'EXBP-022':'691177',
+  'EXBP-023':'691178',
+  'EXBP-024':'691179',
+  'EXBP-025':'708069',
+  'EXBP-026':'708070',
+  'EXBP-027':'708071'
 };
 function gundamStarterSupplement(id, number, setCode, setName, rarity, name, color, cost, level, ap, hp, zone, traits, link, text){
   var urls = officialGundamImageCandidates(id);
@@ -492,6 +523,7 @@ function applyStaticGundamSupplements(){
   var aileText = '<Blocker> (Rest this Unit to change the attack target to it.)\n【When Paired･Lv.4 or Higher Pilot】Choose 1 enemy Unit with 4 or less HP. Return it to its owner\'s hand.';
   var freedomText = 'While a friendly Base is in play, this Unit gets AP+2.\n【Attack】Choose 1 enemy Unit. Deal 2 damage to it.';
   var exResourceText = '(At the start of the game, the second-turn player places 1 active EX Resource into their resource area.)\n(Rest an EX Resource then exile it from the game when paying a cost.)';
+  var exBaseText = "(At the start of the game, place 1 active EX Base as your shield area's base.)";
   var exResourcePromos = [
     ['EXRP-001', 'GAMA Expo 2025'],
     ['EXRP-002', 'Official Card Case Set 01'],
@@ -508,6 +540,34 @@ function applyStaticGundamSupplements(){
     ['EXRP-013', 'Premium Card Collection Gundam Assemble - PC02A'],
     ['EXRP-014', 'GAMA Expo 2026']
   ];
+  var exBasePromos = [
+    ['EXBP-001', 'Edition Beta Early Trial Event'],
+    ['EXBP-002', 'Official Card Case Set 01'],
+    ['EXBP-003', 'Gundam Base Pop-Up World Tour'],
+    ['EXBP-004', 'First Combat'],
+    ['EXBP-005', 'Bandai Card Games Fest 25-26'],
+    ['EXBP-006', 'G Generation Eternal Collaboration Pack'],
+    ['EXBP-007', 'G Generation Eternal Collaboration Pack'],
+    ['EXBP-008', 'G Generation Eternal Collaboration Pack'],
+    ['EXBP-009', 'G Generation Eternal Collaboration Pack'],
+    ['EXBP-010', 'G Generation Eternal Collaboration Pack'],
+    ['EXBP-011', 'Mobile Suit Gundam: Iron-Blooded Orphans'],
+    ['EXBP-013', 'ST09 Release Event'],
+    ['EXBP-014', 'ST09 Release Event'],
+    ['EXBP-015', 'ST09 Release Event'],
+    ['EXBP-016', 'ST09 Release Event'],
+    ['EXBP-017', 'ST09 Release Event'],
+    ['EXBP-018', 'The Sorcery of Nymph Circe Movie Release'],
+    ['EXBP-019', 'Force Impulse Gundam'],
+    ['EXBP-020', 'Starter Deck Battle Event'],
+    ['EXBP-021', 'Starter Deck Battle Event'],
+    ['EXBP-022', 'Starter Deck Battle Event'],
+    ['EXBP-023', 'Starter Deck Battle Event'],
+    ['EXBP-024', 'Starter Deck Battle Event'],
+    ['EXBP-025', 'GD05 Freedom Ascension Deck Build Box'],
+    ['EXBP-026', 'GD05 Freedom Ascension Deck Build Box'],
+    ['EXBP-027', 'GD05 Freedom Ascension Deck Build Box']
+  ];
   var supplements = [
     gundamStarterSupplement('ST04-001', 'ST04-001', 'ST04', 'SEED Strike', 'LR', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
     gundamStarterSupplement('ST04-001_p1', 'ST04-001', 'ST04', 'SEED Strike', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
@@ -518,10 +578,16 @@ function applyStaticGundamSupplements(){
     gundamStarterSupplement('ST09-004_p1', 'ST09-004', 'ST09', 'Destiny Ignition', 'LR +', 'Freedom Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Triple Ship Alliance', '[Kira Yamato]', freedomText),
     gundamUtilitySupplement('EXR-001', 'EXR', 'EX Resource Tokens', 'C', 'EX RESOURCE', 'EX Resource', exResourceText),
     gundamUtilitySupplement('EXR-002', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText),
-    gundamUtilitySupplement('EXR-003', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText)
+    gundamUtilitySupplement('EXR-003', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText),
+    gundamUtilitySupplement('EXB-001', 'EXB', 'EX Base Tokens', 'C', 'EX BASE', 'EX Base', exBaseText),
+    gundamUtilitySupplement('EXB-002', 'EXB', 'EX Base Tokens', 'C', 'EX BASE', 'EX Base', exBaseText),
+    gundamUtilitySupplement('EXB-003', 'EXB', 'EX Base Tokens', 'C', 'EX BASE', 'EX Base', exBaseText)
   ];
   exResourcePromos.forEach(function(promo){
     supplements.push(gundamUtilitySupplement(promo[0], 'EXRP', 'Promotional EX Resource Tokens', 'P', 'EX RESOURCE', 'EX Resource (' + promo[1] + ')', exResourceText));
+  });
+  exBasePromos.forEach(function(promo){
+    supplements.push(gundamUtilitySupplement(promo[0], 'EXBP', 'Promotional EX Base Tokens', 'P', 'EX BASE', 'EX Base (' + promo[1] + ')', exBaseText));
   });
   mergeCards('gundam', supplements);
 }
