@@ -27,10 +27,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add onepiece_cards.js gundam_cards.js sw.js
-          if git diff --cached --quiet; then
-            echo "No price changes to commit"
+          git add onepiece_cards.js gundam_cards.js sw.js PRICE_SYNC_LOG.txt
+          if git diff --cached --quiet -- onepiece_cards.js gundam_cards.js sw.js; then
+            git commit -m "Price sync: no changes today"
           else
             git commit -m "Update TCGPlayer market prices"
-            git push
           fi
+          git push
