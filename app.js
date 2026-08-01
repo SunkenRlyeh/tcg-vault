@@ -193,7 +193,7 @@ function mergeCards(game, incoming){
   var added = 0;
   incoming.forEach(function(c){
     if(!c || !c.id) return;
-    if(game === 'gundam' && shouldSkipGundamCard(c)) return;
+    if(game === 'gundam') c = sanitizeGundamCard(c);
     if(existing[c.id]){
       if(c.image_url && !existing[c.id].image_url) existing[c.id].image_url = c.image_url;
       if(c.image_candidates){
@@ -208,14 +208,19 @@ function mergeCards(game, incoming){
   if(added) invalidateIndex(game);
   return added;
 }
-function shouldSkipGundamCard(card){
+function gundamExResourceHasKnownFrontArt(id){
+  id = String(id || '').toUpperCase();
+  return /^EXR-001$/.test(id) || /^EXR-00[4-9]$/.test(id) || /^EXR-01[01]$/.test(id) || /^EXRP-00[12]$/.test(id);
+}
+function sanitizeGundamCard(card){
+  var copy = card;
   var id = String(card.id || card.number || '').toUpperCase();
   var type = String(card.type || '').toUpperCase();
-  if(type !== 'EX RESOURCE') return false;
-  if(/^EXRP-00[12]$/.test(id)) return false;
-  if(/^EXRP-/.test(id)) return true;
-  if(/^EXR-00[23]$/.test(id)) return true;
-  return false;
+  if(type !== 'EX RESOURCE' || gundamExResourceHasKnownFrontArt(id)) return copy;
+  copy = Object.assign({}, card);
+  copy.image_url = '';
+  copy.image_candidates = [];
+  return copy;
 }
 function parseEnvelope(payload){
   if(Array.isArray(payload)) return payload;
@@ -457,7 +462,19 @@ function applyStaticGundamSupplements(){
   var exResourceText = '(At the start of the game, the second-turn player places 1 active EX Resource into their resource area.)\n(Rest an EX Resource then exile it from the game when paying a cost.)';
   var exResourcePromos = [
     ['EXRP-001', 'GAMA Expo 2025'],
-    ['EXRP-002', 'Official Card Case Set 01']
+    ['EXRP-002', 'Official Card Case Set 01'],
+    ['EXRP-003', 'Bandai Card Games Fest 25-26'],
+    ['EXRP-004', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-005', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-006', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-007', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-008', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-009', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-010', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-011', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-012', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-013', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-014', 'GAMA Expo 2026']
   ];
   var supplements = [
     gundamStarterSupplement('ST04-001', 'ST04-001', 'ST04', 'SEED Strike', 'LR', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
@@ -467,7 +484,9 @@ function applyStaticGundamSupplements(){
     gundamStarterSupplement('ST04-001_p4', 'ST04-001', 'GD04', 'Phantom Aria', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
     gundamStarterSupplement('ST09-004', 'ST09-004', 'ST09', 'Destiny Ignition', 'LR', 'Freedom Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Triple Ship Alliance', '[Kira Yamato]', freedomText),
     gundamStarterSupplement('ST09-004_p1', 'ST09-004', 'ST09', 'Destiny Ignition', 'LR +', 'Freedom Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Triple Ship Alliance', '[Kira Yamato]', freedomText),
-    gundamUtilitySupplement('EXR-001', 'EXR', 'EX Resource Tokens', 'C', 'EX RESOURCE', 'EX Resource', exResourceText)
+    gundamUtilitySupplement('EXR-001', 'EXR', 'EX Resource Tokens', 'C', 'EX RESOURCE', 'EX Resource', exResourceText),
+    gundamUtilitySupplement('EXR-002', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText),
+    gundamUtilitySupplement('EXR-003', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText)
   ];
   exResourcePromos.forEach(function(promo){
     supplements.push(gundamUtilitySupplement(promo[0], 'EXRP', 'Promotional EX Resource Tokens', 'P', 'EX RESOURCE', 'EX Resource (' + promo[1] + ')', exResourceText));
