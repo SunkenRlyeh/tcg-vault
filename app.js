@@ -2380,6 +2380,27 @@ document.getElementById('modal-overlay').addEventListener('click', function(e){
 });
 
 // ---------- Boot ----------
+// Service worker auto-update: sw.js already calls skipWaiting()+clients.claim()
+// on every install, so a new version takes control of open tabs as soon as it
+// finishes installing - the browser just needs a reason to *check* for one.
+// A normal reload triggers that check automatically, but a PWA opened from a
+// phone's home screen is often just resumed from a frozen background state
+// rather than freshly navigated, so it can go a long time without checking.
+// We force a check whenever the app is foregrounded, and reload once a new
+// worker actually takes over so the fresh app.js/styles.css get picked up
+// without the user needing to manually clear site data.
+function watchForServiceWorkerUpdates(reg){
+  var reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') reg.update().catch(function(){});
+  });
+  setInterval(function(){ reg.update().catch(function(){}); }, 60 * 60 * 1000);
+}
 function init(){
   applyStaticGundamSupplements();
   renderFilterOptions();
@@ -2387,7 +2408,7 @@ function init(){
   renderSyncStatus();
   hydrateRemoteCards();
   if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
-    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.register('sw.js').then(watchForServiceWorkerUpdates).catch(function(){});
   }
 }
 init();
