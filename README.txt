@@ -6,8 +6,9 @@ WHAT'S INSIDE
 - Deck builder with legality checks:
     One Piece: 1 Leader + 50-card deck + 10-card DON!! deck + token tracking,
                max 4 main-deck copies/card, leader color matching
-    Gundam:    50-card main deck + 10-card resource deck + token tracking,
-               max 4 main-deck copies/card
+    Gundam:    50-card main deck + 10-card resource deck + uncapped EX
+               Resources/EX Bases + token tracking, max 4 main-deck
+               copies/card
 - Trade binder / collection tracker that treats every alt-art printing as its
   own distinct entry (so a parallel, alternate art, or box topper is tracked
   separately from the regular version) — with its own quantity and price
@@ -15,8 +16,8 @@ WHAT'S INSIDE
   binder or in a saved deck, not the entire card library (see below)
 - Deck export (.txt) / import (paste a list back in)
 - Fast deck controls: main-deck cards support quick +/-1 through +/-4;
-  DON!!, resources, and tokens also support +10 shortcuts. Tokens have no
-  deck-limit check for now.
+  DON!!, resources, EX Resources, EX Bases, and tokens also support +10
+  shortcuts. Tokens, EX Resources, and EX Bases have no deck-limit check for now.
 - Optional Google Drive sync: each tester can sign in with Google and store
   their TCG Vault backup in their own hidden Drive app data folder. The app
   does not need a server or database for tester account data.

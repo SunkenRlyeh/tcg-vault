@@ -101,7 +101,13 @@ state.sync.lastSyncAt = state.sync.lastSyncAt || null;
 state.decks.onepiece = state.decks.onepiece || [];
 state.decks.gundam = state.decks.gundam || [];
 state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
-state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; deck.allowExtraColors = !!deck.allowExtraColors; });
+state.decks.gundam.forEach(function(deck){
+  deck.resources = deck.resources || {};
+  deck.exResources = deck.exResources || {};
+  deck.exBases = deck.exBases || {};
+  deck.tokens = deck.tokens || {};
+  deck.allowExtraColors = !!deck.allowExtraColors;
+});
 
 function normalizeLoadedState(next){
   next = next || defaultState();
@@ -117,7 +123,13 @@ function normalizeLoadedState(next){
   next.sync.updatedAt = next.sync.updatedAt || new Date().toISOString();
   next.sync.lastSyncAt = next.sync.lastSyncAt || null;
   next.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
-  next.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; deck.allowExtraColors = !!deck.allowExtraColors; });
+  next.decks.gundam.forEach(function(deck){
+    deck.resources = deck.resources || {};
+    deck.exResources = deck.exResources || {};
+    deck.exBases = deck.exBases || {};
+    deck.tokens = deck.tokens || {};
+    deck.allowExtraColors = !!deck.allowExtraColors;
+  });
   return next;
 }
 state = normalizeLoadedState(state);
@@ -350,7 +362,7 @@ function createDeck(game, name){
   var id = 'd' + Date.now() + Math.floor(Math.random()*1000);
   var deck = game === 'onepiece'
     ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{}, tokens:{} }
-    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, tokens:{}, allowExtraColors:false };
+    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, exResources:{}, exBases:{}, tokens:{}, allowExtraColors:false };
   state.decks[game].push(deck);
   state.activeDeck[game] = id;
   saveState();
@@ -363,6 +375,8 @@ function ensureActiveDeck(game){
   if(game === 'onepiece') deck.dons = deck.dons || {};
   if(game === 'gundam'){
     deck.resources = deck.resources || {};
+    deck.exResources = deck.exResources || {};
+    deck.exBases = deck.exBases || {};
     deck.allowExtraColors = !!deck.allowExtraColors;
   }
   deck.tokens = deck.tokens || {};
@@ -370,6 +384,13 @@ function ensureActiveDeck(game){
 }
 function bucketTotal(bucket){
   return Object.keys(bucket || {}).reduce(function(sum,k){ return sum + (bucket[k] || 0); }, 0);
+}
+function setLimitedBucketQty(deck, bucket, num, qty, limit){
+  var cur = deck[bucket][num] || 0;
+  var room = Math.max(0, limit - (bucketTotal(deck[bucket]) - cur));
+  var next = Math.max(0, Math.min(qty, room));
+  if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
+  return next;
 }
 function changeDeckQty(game, deck, bucket, num, delta){
   var cur = deck[bucket][num] || 0;
@@ -407,6 +428,14 @@ function addCardToDeck(game, card){
     deck.resources[card.number] = (deck.resources[card.number]||0) + 1;
     toast('Added ' + card.name + ' to resource deck');
     cacheImage(card.image_url);
+  } else if(game === 'gundam' && isExResourceCard(card)){
+    deck.exResources[card.number] = (deck.exResources[card.number]||0) + 1;
+    toast('Added ' + card.name + ' to EX resources');
+    cacheImage(card.image_url);
+  } else if(game === 'gundam' && isExBaseCard(card)){
+    deck.exBases[card.number] = (deck.exBases[card.number]||0) + 1;
+    toast('Added ' + card.name + ' to EX bases');
+    cacheImage(card.image_url);
   } else if(isTokenCard(card)){
     deck.tokens[card.number] = (deck.tokens[card.number]||0) + 1;
     toast('Added ' + card.name + ' to tokens');
@@ -439,6 +468,16 @@ function addCardCopiesToDeck(game, card, count){
     deck.resources[card.number] = rnext;
     if(rnext === 0) delete deck.resources[card.number];
     changed = rnext - rcur;
+  } else if(game === 'gundam' && isExResourceCard(card)){
+    var ercur = deck.exResources[card.number] || 0;
+    var ernext = Math.max(0, ercur + count);
+    if(ernext === 0) delete deck.exResources[card.number]; else deck.exResources[card.number] = ernext;
+    changed = ernext - ercur;
+  } else if(game === 'gundam' && isExBaseCard(card)){
+    var ebcur = deck.exBases[card.number] || 0;
+    var ebnext = Math.max(0, ebcur + count);
+    if(ebnext === 0) delete deck.exBases[card.number]; else deck.exBases[card.number] = ebnext;
+    changed = ebnext - ebcur;
   } else if(isTokenCard(card)){
     var tcur = deck.tokens[card.number] || 0;
     var tnext = Math.max(0, tcur + count);
@@ -515,15 +554,21 @@ function sharesAnyColor(card, colors){
 function isOnePieceDonCard(card){
   return card && (card.type === 'DON!!' || /^don_/i.test(card.id || '') || /^DON!! Card/i.test(card.name || ''));
 }
+function isExResourceCard(card){
+  return !!(card && (card.type === 'EX RESOURCE' || /^EXR-/i.test(card.number || card.id || '')));
+}
+function isExBaseCard(card){
+  return !!(card && (card.type === 'EX BASE' || /^EXB-/i.test(card.number || card.id || '')));
+}
 function isTokenCard(card){
   if(!card) return false;
-  if(card.type === 'RESOURCE' || isOnePieceDonCard(card)) return false;
+  if(card.type === 'RESOURCE' || isOnePieceDonCard(card) || isExResourceCard(card) || isExBaseCard(card)) return false;
   var type = String(card.type || '');
   var num = String(card.number || card.id || '');
-  return /TOKEN/i.test(type) || /^EX (BASE|RESOURCE)$/i.test(type) || /^(T|EXB|EXR)-/i.test(num);
+  return /TOKEN/i.test(type) || /^T-/i.test(num);
 }
 function quickStepsForCard(game, card){
-  if(isOnePieceDonCard(card) || isTokenCard(card) || (game === 'gundam' && card.type === 'RESOURCE')){
+  if(isOnePieceDonCard(card) || isTokenCard(card) || isExResourceCard(card) || isExBaseCard(card) || (game === 'gundam' && card.type === 'RESOURCE')){
     return [-1,-2,-3,-4,-10,1,2,3,4,10];
   }
   return [-1,-2,-3,-4,1,2,3,4];
@@ -608,6 +653,16 @@ function deckToText(game, deck){
       var c = (idx.byNumber[num]||[])[0];
       lines.push(deck.resources[num] + 'x ' + num + (c ? ' ' + c.name : ''));
     });
+    lines.push('-- EX Resources --');
+    Object.keys(deck.exResources || {}).sort().forEach(function(num){
+      var c = (idx.byNumber[num]||[])[0];
+      lines.push(deck.exResources[num] + 'x ' + num + (c ? ' ' + c.name : ''));
+    });
+    lines.push('-- EX Bases --');
+    Object.keys(deck.exBases || {}).sort().forEach(function(num){
+      var c = (idx.byNumber[num]||[])[0];
+      lines.push(deck.exBases[num] + 'x ' + num + (c ? ' ' + c.name : ''));
+    });
   }
   return lines.join('\n');
 }
@@ -624,8 +679,10 @@ function importDeckText(text){
     if(!idx.byNumber[num]) return;
     var card = idx.byNumber[num][0];
     if(game === 'onepiece' && card.type === 'Leader'){ deck.leader = num; }
-    else if(game === 'onepiece' && isOnePieceDonCard(card)){ deck.dons[num] = Math.min(qty,10); }
-    else if(game === 'gundam' && card.type === 'RESOURCE'){ deck.resources[num] = qty; }
+    else if(game === 'onepiece' && isOnePieceDonCard(card)){ setLimitedBucketQty(deck, 'dons', num, qty, 10); }
+    else if(game === 'gundam' && card.type === 'RESOURCE'){ setLimitedBucketQty(deck, 'resources', num, qty, 10); }
+    else if(game === 'gundam' && isExResourceCard(card)){ deck.exResources[num] = qty; }
+    else if(game === 'gundam' && isExBaseCard(card)){ deck.exBases[num] = qty; }
     else if(isTokenCard(card)){ deck.tokens[num] = qty; }
     else { deck.cards[num] = Math.min(qty,4); }
     cacheImage(card.image_url);
@@ -671,6 +728,18 @@ function getRelevantImageUrls(){
       });
       if(deck.resources){
         Object.keys(deck.resources).forEach(function(num){
+          var c = (idx.byNumber[num]||[])[0];
+          if(c && c.image_url) urls[c.image_url] = true;
+        });
+      }
+      if(deck.exResources){
+        Object.keys(deck.exResources).forEach(function(num){
+          var c = (idx.byNumber[num]||[])[0];
+          if(c && c.image_url) urls[c.image_url] = true;
+        });
+      }
+      if(deck.exBases){
+        Object.keys(deck.exBases).forEach(function(num){
           var c = (idx.byNumber[num]||[])[0];
           if(c && c.image_url) urls[c.image_url] = true;
         });
@@ -1206,11 +1275,15 @@ function renderDeckView(){
 
   var leaderSlot = document.getElementById('deck-leader-slot');
   var resourceSection = document.getElementById('deck-resource-section');
+  var exResourceSection = document.getElementById('deck-ex-resource-section');
+  var exBaseSection = document.getElementById('deck-ex-base-section');
   var donSection = document.getElementById('deck-don-section');
   if(game === 'onepiece'){
     leaderSlot.style.display = 'block';
     donSection.classList.remove('hidden');
     resourceSection.classList.add('hidden');
+    exResourceSection.classList.add('hidden');
+    exBaseSection.classList.add('hidden');
     if(deck.leader){
       var lc = (idx.byNumber[deck.leader]||[])[0];
       leaderSlot.innerHTML = '<div class="deck-row"><div class="dname">Leader: ' + escapeHtml(lc?lc.name:deck.leader) + '</div><button class="text-btn" id="leader-clear">Change</button></div>';
@@ -1222,6 +1295,8 @@ function renderDeckView(){
     leaderSlot.style.display = 'none';
     donSection.classList.add('hidden');
     resourceSection.classList.remove('hidden');
+    exResourceSection.classList.remove('hidden');
+    exBaseSection.classList.remove('hidden');
   }
 
   var listEl = document.getElementById('deck-list');
@@ -1266,6 +1341,8 @@ function renderDeckView(){
       row.querySelector('[data-act="plus10"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, 10); };
       resList.appendChild(row);
     });
+    renderDeckSpecialBucket(game, deck, idx, 'exResources', 'ex-resource-list', 'ex-resource-count', 'No EX resources added yet.');
+    renderDeckSpecialBucket(game, deck, idx, 'exBases', 'ex-base-list', 'ex-base-count', 'No EX bases added yet.');
   }
   if(game === 'onepiece'){
     var donList = document.getElementById('don-list');
@@ -1315,6 +1392,30 @@ function renderDeckView(){
   });
 
   renderDeckAddGrid();
+}
+function renderDeckSpecialBucket(game, deck, idx, bucket, listId, countId, emptyText){
+  var listEl = document.getElementById(listId);
+  var entries = Object.keys(deck[bucket] || {}).map(function(k){ return [k, deck[bucket][k]]; });
+  document.getElementById(countId).textContent = entries.reduce(function(a,e){ return a+e[1]; },0);
+  listEl.innerHTML = '';
+  if(entries.length === 0){
+    listEl.innerHTML = '<div class="empty-state">' + escapeHtml(emptyText) + '</div>';
+  }
+  entries.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {numeric:true}); });
+  entries.forEach(function(e){
+    var num = e[0], qty = e[1];
+    var c = (idx.byNumber[num]||[])[0];
+    var row = document.createElement('div');
+    row.className = 'deck-row';
+    row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
+      '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
+    if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
+    if(c) row.addEventListener('click', function(){ openCardModal(c); });
+    row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, bucket, num, -1); };
+    row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, bucket, num, 1); };
+    row.querySelector('[data-act="plus10"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, bucket, num, 10); };
+    listEl.appendChild(row);
+  });
 }
 function renderLegalityPanel(game, deck, errs, legEl, idx){
   var colors = game === 'gundam' ? gundamDeckColors(deck, idx) : [];
@@ -1425,6 +1526,8 @@ function renderCollectionView(){
     if(deck){
       Object.keys(deck.cards).forEach(function(n){ need[n] = (need[n]||0) + deck.cards[n]; });
       if(game === 'gundam') Object.keys(deck.resources).forEach(function(n){ need[n] = (need[n]||0) + deck.resources[n]; });
+      if(game === 'gundam' && deck.exResources) Object.keys(deck.exResources).forEach(function(n){ need[n] = (need[n]||0) + deck.exResources[n]; });
+      if(game === 'gundam' && deck.exBases) Object.keys(deck.exBases).forEach(function(n){ need[n] = (need[n]||0) + deck.exBases[n]; });
       if(game === 'onepiece' && deck.dons) Object.keys(deck.dons).forEach(function(n){ need[n] = (need[n]||0) + deck.dons[n]; });
       if(deck.tokens) Object.keys(deck.tokens).forEach(function(n){ need[n] = (need[n]||0) + deck.tokens[n]; });
       if(game === 'onepiece' && deck.leader) need[deck.leader] = (need[deck.leader]||0) + 1;
@@ -1599,11 +1702,15 @@ document.getElementById('deck-clear').addEventListener('click', function(){
   if(!deck) return;
   var msg = game === 'onepiece'
     ? 'Clear all main deck and DON!! cards from "' + deck.name + '"? Your leader will stay selected.'
-    : 'Clear all cards and resources from "' + deck.name + '"?';
+    : 'Clear all cards, resources, EX cards, and tokens from "' + deck.name + '"?';
   if(!confirm(msg)) return;
   deck.cards = {};
   if(game === 'onepiece') deck.dons = {};
-  if(game === 'gundam') deck.resources = {};
+  if(game === 'gundam'){
+    deck.resources = {};
+    deck.exResources = {};
+    deck.exBases = {};
+  }
   deck.tokens = {};
   saveState();
   renderDeckView();
