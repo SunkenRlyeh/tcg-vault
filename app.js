@@ -89,8 +89,8 @@ state.decks = state.decks || { onepiece:[], gundam:[] };
 state.activeDeck = state.activeDeck || { onepiece:null, gundam:null };
 state.decks.onepiece = state.decks.onepiece || [];
 state.decks.gundam = state.decks.gundam || [];
-state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; });
-state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; });
+state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
+state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; deck.tokens = deck.tokens || {}; });
 
 function saveState(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){ /* storage full or unavailable */ }
@@ -304,8 +304,8 @@ function getActiveDeck(game){
 function createDeck(game, name){
   var id = 'd' + Date.now() + Math.floor(Math.random()*1000);
   var deck = game === 'onepiece'
-    ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{} }
-    : { id:id, name: name || 'New Deck', cards:{}, resources:{} };
+    ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{}, tokens:{} }
+    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, tokens:{} };
   state.decks[game].push(deck);
   state.activeDeck[game] = id;
   saveState();
@@ -317,6 +317,7 @@ function ensureActiveDeck(game){
   var deck = getActiveDeck(game);
   if(game === 'onepiece') deck.dons = deck.dons || {};
   if(game === 'gundam') deck.resources = deck.resources || {};
+  deck.tokens = deck.tokens || {};
   return deck;
 }
 function changeDeckQty(game, deck, bucket, num, delta){
@@ -325,6 +326,7 @@ function changeDeckQty(game, deck, bucket, num, delta){
   if(next < 0) next = 0;
   if(bucket === 'cards' && next > 4) next = 4;
   if(bucket === 'dons' && next > 10) next = 10;
+  if(bucket === 'resources' && next > 10) next = 10;
   if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
   saveState();
   if(next > cur){
@@ -348,6 +350,10 @@ function addCardToDeck(game, card){
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
     deck.resources[card.number] = (deck.resources[card.number]||0) + 1;
     toast('Added ' + card.name + ' to resource deck');
+    cacheImage(card.image_url);
+  } else if(isTokenCard(card)){
+    deck.tokens[card.number] = (deck.tokens[card.number]||0) + 1;
+    toast('Added ' + card.name + ' to tokens');
     cacheImage(card.image_url);
   } else {
     var cur = deck.cards[card.number] || 0;
@@ -375,6 +381,11 @@ function addCardCopiesToDeck(game, card, count){
     deck.resources[card.number] = rnext;
     if(rnext === 0) delete deck.resources[card.number];
     changed = rnext - rcur;
+  } else if(isTokenCard(card)){
+    var tcur = deck.tokens[card.number] || 0;
+    var tnext = Math.max(0, tcur + count);
+    if(tnext === 0) delete deck.tokens[card.number]; else deck.tokens[card.number] = tnext;
+    changed = tnext - tcur;
   } else {
     var cur = deck.cards[card.number] || 0;
     var next = Math.max(0, Math.min(4, cur + count));
@@ -435,6 +446,19 @@ function sharesAnyColor(card, colors){
 }
 function isOnePieceDonCard(card){
   return card && (card.type === 'DON!!' || /^don_/i.test(card.id || '') || /^DON!! Card/i.test(card.name || ''));
+}
+function isTokenCard(card){
+  if(!card) return false;
+  if(card.type === 'RESOURCE' || isOnePieceDonCard(card)) return false;
+  var type = String(card.type || '');
+  var num = String(card.number || card.id || '');
+  return /TOKEN/i.test(type) || /^EX (BASE|RESOURCE)$/i.test(type) || /^(T|EXB|EXR)-/i.test(num);
+}
+function quickStepsForCard(game, card){
+  if(isOnePieceDonCard(card) || isTokenCard(card) || (game === 'gundam' && card.type === 'RESOURCE')){
+    return [-1,-2,-3,-4,-10,1,2,3,4,10];
+  }
+  return [-1,-2,-3,-4,1,2,3,4];
 }
 function deckCardEntries(game, deck){
   var idx = getIndex(game);
@@ -505,6 +529,11 @@ function deckToText(game, deck){
       lines.push(deck.dons[num] + 'x ' + num + (c ? ' ' + c.name : ''));
     });
   }
+  lines.push('-- Tokens --');
+  Object.keys(deck.tokens || {}).sort().forEach(function(num){
+    var c = (idx.byNumber[num]||[])[0];
+    lines.push(deck.tokens[num] + 'x ' + num + (c ? ' ' + c.name : ''));
+  });
   if(game === 'gundam'){
     lines.push('-- Resources --');
     Object.keys(deck.resources).sort().forEach(function(num){
@@ -529,6 +558,7 @@ function importDeckText(text){
     if(game === 'onepiece' && card.type === 'Leader'){ deck.leader = num; }
     else if(game === 'onepiece' && isOnePieceDonCard(card)){ deck.dons[num] = Math.min(qty,10); }
     else if(game === 'gundam' && card.type === 'RESOURCE'){ deck.resources[num] = qty; }
+    else if(isTokenCard(card)){ deck.tokens[num] = qty; }
     else { deck.cards[num] = Math.min(qty,4); }
     cacheImage(card.image_url);
     added++;
@@ -581,6 +611,12 @@ function getRelevantImageUrls(){
         Object.keys(deck.dons).forEach(function(num){
           var dc = (idx.byNumber[num]||[])[0];
           if(dc && dc.image_url) urls[dc.image_url] = true;
+        });
+      }
+      if(deck.tokens){
+        Object.keys(deck.tokens).forEach(function(num){
+          var tc = (idx.byNumber[num]||[])[0];
+          if(tc && tc.image_url) urls[tc.image_url] = true;
         });
       }
       if(game === 'onepiece' && deck.leader){
@@ -951,11 +987,12 @@ function renderDeckView(){
       var row = document.createElement('div');
       row.className = 'deck-row';
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
-        '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+        '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
       row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, 1); };
+      row.querySelector('[data-act="plus10"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, 10); };
       resList.appendChild(row);
     });
   }
@@ -974,14 +1011,37 @@ function renderDeckView(){
       var row = document.createElement('div');
       row.className = 'deck-row';
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
-        '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+        '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
       row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, 1); };
+      row.querySelector('[data-act="plus10"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, 10); };
       donList.appendChild(row);
     });
   }
+  var tokenList = document.getElementById('token-list');
+  var tokenEntries = Object.keys(deck.tokens || {}).map(function(k){ return [k, deck.tokens[k]]; });
+  document.getElementById('token-count').textContent = tokenEntries.reduce(function(a,e){ return a+e[1]; },0);
+  tokenList.innerHTML = '';
+  if(tokenEntries.length === 0){
+    tokenList.innerHTML = '<div class="empty-state">No tokens added yet.</div>';
+  }
+  tokenEntries.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {numeric:true}); });
+  tokenEntries.forEach(function(e){
+    var num = e[0], qty = e[1];
+    var c = (idx.byNumber[num]||[])[0];
+    var row = document.createElement('div');
+    row.className = 'deck-row';
+    row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
+      '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
+    if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+    if(c) row.addEventListener('click', function(){ openCardModal(c); });
+    row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'tokens', num, -1); };
+    row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'tokens', num, 1); };
+    row.querySelector('[data-act="plus10"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'tokens', num, 10); };
+    tokenList.appendChild(row);
+  });
 
   renderDeckAddGrid();
 }
@@ -1000,11 +1060,11 @@ function renderDeckAddGrid(){
       colorToggle.textContent = onePieceAllowAnyColor ? 'Any color: On' : 'Leader colors only';
       colorToggle.classList.toggle('active', onePieceAllowAnyColor);
       list = list.filter(function(c){
-        return c.type !== 'Leader' && (isOnePieceDonCard(c) || onePieceAllowAnyColor || sharesAnyColor(c, leaderColors));
+        return c.type !== 'Leader' && (isOnePieceDonCard(c) || isTokenCard(c) || onePieceAllowAnyColor || sharesAnyColor(c, leaderColors));
       });
     } else {
       colorToggle.classList.add('hidden');
-      list = list.filter(function(c){ return c.type === 'Leader' || isOnePieceDonCard(c); });
+      list = list.filter(function(c){ return c.type === 'Leader' || isOnePieceDonCard(c) || isTokenCard(c); });
     }
   } else {
     colorToggle.classList.add('hidden');
@@ -1031,7 +1091,7 @@ function deckAddTile(c, game){
   var tile = cardTile(c, openCardModal);
   var quick = document.createElement('div');
   quick.className = 'quick-add';
-  [-1,-2,-3,-4,1,2,3,4].forEach(function(n){
+  quickStepsForCard(game, c).forEach(function(n){
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = (n > 0 ? '+' : '') + n;
@@ -1072,6 +1132,7 @@ function renderCollectionView(){
       Object.keys(deck.cards).forEach(function(n){ need[n] = (need[n]||0) + deck.cards[n]; });
       if(game === 'gundam') Object.keys(deck.resources).forEach(function(n){ need[n] = (need[n]||0) + deck.resources[n]; });
       if(game === 'onepiece' && deck.dons) Object.keys(deck.dons).forEach(function(n){ need[n] = (need[n]||0) + deck.dons[n]; });
+      if(deck.tokens) Object.keys(deck.tokens).forEach(function(n){ need[n] = (need[n]||0) + deck.tokens[n]; });
       if(game === 'onepiece' && deck.leader) need[deck.leader] = (need[deck.leader]||0) + 1;
     }
     var rows = Object.keys(need).map(function(num){
@@ -1245,6 +1306,7 @@ document.getElementById('deck-clear').addEventListener('click', function(){
   deck.cards = {};
   if(game === 'onepiece') deck.dons = {};
   if(game === 'gundam') deck.resources = {};
+  deck.tokens = {};
   saveState();
   renderDeckView();
 });
