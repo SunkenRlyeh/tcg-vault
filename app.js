@@ -220,6 +220,12 @@ function fetchJson(url){
     return resp.json();
   });
 }
+function fetchText(url){
+  return fetch(url, { cache: 'no-store' }).then(function(resp){
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.text();
+  });
+}
 function optcgImageUrl(imageId){
   if(!imageId) return null;
   var s = String(imageId);
@@ -312,6 +318,22 @@ function fetchGundamCardsByType(type){
     return mergeCards('gundam', cards);
   }).catch(function(){ return 0; });
 }
+function fetchGundamBulkCards(){
+  return fetchText('https://api.gcgapi.com/v1/bulk').then(function(text){
+    var rows = [];
+    text = String(text || '').trim();
+    if(!text) return 0;
+    if(text.charAt(0) === '['){
+      rows = JSON.parse(text);
+    } else if(text.charAt(0) === '{'){
+      var parsed = JSON.parse(text);
+      rows = parseEnvelope(parsed);
+    } else {
+      rows = text.split(/\r?\n/).filter(Boolean).map(function(line){ return JSON.parse(line); });
+    }
+    return mergeCards('gundam', rows.map(normalizeGundamCard));
+  }).catch(function(){ return 0; });
+}
 function hydrateRemoteCards(){
   var tasks = [];
   tasks.push(fetchJson('https://www.optcgapi.com/api/allDonCards/').then(function(payload){
@@ -319,6 +341,7 @@ function hydrateRemoteCards(){
     return mergeCards('onepiece', cards);
   }).catch(function(){ return 0; }));
 
+  tasks.push(fetchGundamBulkCards());
   ['ST01','ST02','ST03','ST04','ST05','ST06','ST07','ST08','ST09','ST10'].forEach(function(setCode){
     tasks.push(fetchJson('https://api.gcgapi.com/v1/sets/' + setCode + '/cards').then(function(payload){
       var cards = parseEnvelope(payload).map(normalizeGundamCard);
@@ -335,6 +358,102 @@ function hydrateRemoteCards(){
     renderFilterOptions();
     renderCurrentView();
   });
+}
+function officialGundamImageCandidates(id){
+  return [
+    './gundam-images/' + id + '.webp',
+    'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
+    'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715',
+    'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=',
+    'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715'
+  ];
+}
+function gundamStarterSupplement(id, number, setCode, setName, rarity, name, color, cost, level, ap, hp, zone, traits, link, text){
+  var urls = officialGundamImageCandidates(id);
+  if(id !== number) urls = urls.concat(officialGundamImageCandidates(number));
+  return {
+    id:id,
+    number:number,
+    game:'gundam',
+    name:name,
+    set_code:setCode,
+    set_name:setName,
+    rarity:rarity,
+    type:'UNIT',
+    color:color,
+    cost:cost,
+    level:level,
+    ap:ap,
+    hp:hp,
+    zone:zone,
+    traits:traits,
+    link:link,
+    text:text,
+    image_url:urls[0],
+    image_candidates:urls,
+    price:null
+  };
+}
+function gundamUtilitySupplement(id, setCode, setName, rarity, type, name, text){
+  var urls = officialGundamImageCandidates(id);
+  return {
+    id:id,
+    number:id,
+    game:'gundam',
+    name:name,
+    set_code:setCode,
+    set_name:setName,
+    rarity:rarity,
+    type:type,
+    color:null,
+    cost:null,
+    level:null,
+    ap:null,
+    hp:null,
+    zone:'-',
+    traits:'',
+    link:'-',
+    text:text,
+    image_url:urls[0],
+    image_candidates:urls,
+    price:null
+  };
+}
+function applyStaticGundamSupplements(){
+  var aileText = '<Blocker> (Rest this Unit to change the attack target to it.)\n【When Paired･Lv.4 or Higher Pilot】Choose 1 enemy Unit with 4 or less HP. Return it to its owner\'s hand.';
+  var freedomText = 'While a friendly Base is in play, this Unit gets AP+2.\n【Attack】Choose 1 enemy Unit. Deal 2 damage to it.';
+  var exResourceText = '(At the start of the game, the second-turn player places 1 active EX Resource into their resource area.)\n(Rest an EX Resource then exile it from the game when paying a cost.)';
+  var exResourcePromos = [
+    ['EXRP-001', 'GAMA Expo 2025'],
+    ['EXRP-002', 'Official Card Case Set 01'],
+    ['EXRP-003', 'Bandai Card Games Fest 25-26'],
+    ['EXRP-004', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-005', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-006', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-007', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-008', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-009', 'Premium Card Collection Gundam Assemble - PC01A'],
+    ['EXRP-010', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-011', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-012', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-013', 'Premium Card Collection Gundam Assemble - PC02A'],
+    ['EXRP-014', 'GAMA Expo 2026']
+  ];
+  var supplements = [
+    gundamStarterSupplement('ST04-001', 'ST04-001', 'ST04', 'SEED Strike', 'LR', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
+    gundamStarterSupplement('ST04-001_p1', 'ST04-001', 'ST04', 'SEED Strike', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
+    gundamStarterSupplement('ST04-001_p2', 'ST04-001', 'ST04', 'SEED Strike', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
+    gundamStarterSupplement('ST04-001_p3', 'ST04-001', 'ST04', 'Limited BOX Ver. beta', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
+    gundamStarterSupplement('ST04-001_p4', 'ST04-001', 'GD04', 'Phantom Aria', 'LR +', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
+    gundamStarterSupplement('ST09-004', 'ST09-004', 'ST09', 'Destiny Ignition', 'LR', 'Freedom Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Triple Ship Alliance', '[Kira Yamato]', freedomText),
+    gundamStarterSupplement('ST09-004_p1', 'ST09-004', 'ST09', 'Destiny Ignition', 'LR +', 'Freedom Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Triple Ship Alliance', '[Kira Yamato]', freedomText),
+    gundamUtilitySupplement('EXR-001', 'EXR', 'EX Resource Tokens', 'C', 'EX RESOURCE', 'EX Resource', exResourceText),
+    gundamUtilitySupplement('EXR-002', 'EXR', 'EX Resource Tokens', 'C +', 'EX RESOURCE', 'EX Resource', exResourceText)
+  ];
+  exResourcePromos.forEach(function(promo){
+    supplements.push(gundamUtilitySupplement(promo[0], 'EXRP', 'Promotional EX Resource Tokens', 'P', 'EX RESOURCE', 'EX Resource (' + promo[1] + ')', exResourceText));
+  });
+  mergeCards('gundam', supplements);
 }
 
 // ---------- App state ----------
@@ -858,6 +977,10 @@ function imageUrlsForCard(cardOrUrl){
   var urls = [];
   if(cardOrUrl.image_url) urls.push(cardOrUrl.image_url);
   if(Array.isArray(cardOrUrl.image_candidates)) urls = urls.concat(cardOrUrl.image_candidates);
+  if(cardOrUrl.game === 'gundam'){
+    if(cardOrUrl.id) urls = urls.concat(officialGundamImageCandidates(cardOrUrl.id));
+    if(cardOrUrl.number && cardOrUrl.number !== cardOrUrl.id) urls = urls.concat(officialGundamImageCandidates(cardOrUrl.number));
+  }
   var seen = {};
   return urls.map(normalizeImageUrl).filter(function(u){
     if(!u || seen[u]) return false;
@@ -1903,6 +2026,7 @@ document.getElementById('modal-overlay').addEventListener('click', function(e){
 
 // ---------- Boot ----------
 function init(){
+  applyStaticGundamSupplements();
   renderFilterOptions();
   renderCurrentView();
   renderSyncStatus();
