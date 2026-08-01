@@ -130,6 +130,20 @@ button, input, select { font-family: inherit; }
 .legality { padding: 8px 10px; border-radius: 10px; margin-bottom: 10px; font-size: 12.5px; background: var(--bg-elev); border: 1px solid var(--border); }
 .legality.ok { border-color: var(--green); color: var(--green); }
 .legality.warn { border-color: var(--amber); color: var(--amber); }
+.deck-stats {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px; margin-bottom: 10px;
+}
+.deck-stats .empty { color: var(--text-dim); font-size: 12.5px; text-align: center; }
+.deck-stats-head { color: var(--text-dim); font-size: 12px; margin-bottom: 8px; }
+.curve-block { margin-top: 8px; }
+.curve-block + .curve-block { padding-top: 8px; border-top: 1px solid var(--border); }
+.curve-title { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; }
+.curve-row { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; gap: 8px; min-height: 20px; }
+.curve-label, .curve-count { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.curve-count { text-align: right; }
+.curve-track { height: 8px; border-radius: 999px; background: var(--bg-elev-2); overflow: hidden; }
+.curve-fill { height: 100%; border-radius: inherit; background: var(--accent); }
 .deck-leader-slot { margin-bottom: 10px; }
 .deck-leader-slot .empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 14px; text-align: center; color: var(--text-dim); font-size: 13px; }
 .deck-body { display: flex; flex-direction: column; gap: 14px; }

@@ -252,6 +252,56 @@ function deckLegality(game, deck){
   }
   return errs;
 }
+function deckCardEntries(game, deck){
+  var idx = getIndex(game);
+  return Object.keys(deck.cards || {}).map(function(num){
+    return {
+      num: num,
+      qty: deck.cards[num],
+      card: (idx.byNumber[num]||[])[0]
+    };
+  }).filter(function(e){ return e.card && e.qty > 0; });
+}
+function numericCurve(entries, field){
+  var buckets = {};
+  entries.forEach(function(e){
+    var v = e.card[field];
+    if(v == null || v === '') return;
+    var n = parseInt(v, 10);
+    if(isNaN(n)) return;
+    buckets[n] = (buckets[n] || 0) + e.qty;
+  });
+  return buckets;
+}
+function renderCurve(title, buckets){
+  var keys = Object.keys(buckets).map(function(k){ return parseInt(k, 10); }).sort(function(a,b){ return a-b; });
+  if(keys.length === 0) return '';
+  var max = keys.reduce(function(m,k){ return Math.max(m, buckets[k]); }, 1);
+  return '<div class="curve-block"><div class="curve-title">' + escapeHtml(title) + '</div>' +
+    keys.map(function(k){
+      var count = buckets[k];
+      var pct = Math.max(6, Math.round((count / max) * 100));
+      return '<div class="curve-row"><span class="curve-label">' + k + '</span>' +
+        '<div class="curve-track"><div class="curve-fill" style="width:' + pct + '%"></div></div>' +
+        '<span class="curve-count">' + count + '</span></div>';
+    }).join('') +
+  '</div>';
+}
+function renderDeckStats(game, deck){
+  var el = document.getElementById('deck-stats');
+  if(!el) return;
+  var entries = deckCardEntries(game, deck);
+  var total = entries.reduce(function(sum,e){ return sum + e.qty; }, 0);
+  if(total === 0){
+    el.innerHTML = '<div class="empty">Add cards to see your deck curves.</div>';
+    return;
+  }
+  var costCurve = numericCurve(entries, 'cost');
+  var levelCurve = numericCurve(entries, 'level');
+  var curves = renderCurve('Cost curve', costCurve) + renderCurve('Level curve', levelCurve);
+  el.innerHTML = '<div class="deck-stats-head"><span>' + total + ' card' + (total===1?'':'s') + ' in main deck</span></div>' +
+    (curves || '<div class="empty">No numeric cost or level data for this deck.</div>');
+}
 function deckToText(game, deck){
   var idx = getIndex(game);
   var lines = [];
@@ -647,6 +697,7 @@ function renderDeckView(){
   var legEl = document.getElementById('deck-legality');
   if(errs.length === 0){ legEl.className = 'legality ok'; legEl.textContent = 'Deck is legal and ready to play.'; }
   else { legEl.className = 'legality warn'; legEl.textContent = errs.join(' · '); }
+  renderDeckStats(game, deck);
 
   var leaderSlot = document.getElementById('deck-leader-slot');
   var resourceSection = document.getElementById('deck-resource-section');
