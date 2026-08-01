@@ -168,9 +168,17 @@ function optcgImageUrl(imageId){
   if(/^https?:\/\//i.test(s)) return s;
   return 'https://optcgapi.com/media/static/Card_Images/' + s.replace(/\.(jpg|png|webp)$/i, '') + '.jpg';
 }
+function optcgReadableImageUrl(label){
+  if(!label) return null;
+  var slug = String(label).replace(/'/g, '').replace(/!!/g, '').replace(/\/+/g, ' ');
+  slug = slug.replace(/[()]/g, '').replace(/[^A-Za-z0-9-]+/g, '_').replace(/^_+|_+$/g, '');
+  if(!slug) return null;
+  return 'https://optcgapi.com/media/static/Card_Images/' + slug + '_img.jpg';
+}
 function normalizeOnePieceDon(raw, pos){
   var id = firstPresent(raw, ['id','card_id','cardID','don_id','donID','image_id','imageID','imageId']);
-  var imageId = firstPresent(raw, ['image_id','imageID','imageId','image','img','card_image','cardImage']);
+  var imageId = firstPresent(raw, ['image_id','imageID','imageId']);
+  var directImage = firstPresent(raw, ['card_image','cardImage','image_url','imageUrl','image','img']);
   var name = firstPresent(raw, ['name','card_name','cardName','don_name','donName']) || 'DON!! Card';
   var fullName = firstPresent(raw, ['full_name','fullName','don_full_name','donFullName','display_name','displayName']);
   var setName = firstPresent(raw, ['set_name','setName','deck_name','deckName','product_name','productName']);
@@ -178,6 +186,8 @@ function normalizeOnePieceDon(raw, pos){
   var number = firstPresent(raw, ['number','card_number','cardNumber']);
   if(!id) id = imageId || number || ('don_' + (pos + 1));
   if(!number) number = String(id).toUpperCase().indexOf('DON') === 0 ? id : String(id);
+  var primaryImage = optcgImageUrl(directImage || imageId || id);
+  var candidates = [primaryImage, optcgReadableImageUrl(fullName || name)].filter(Boolean);
   return {
     id: String(id),
     number: String(number),
@@ -195,7 +205,8 @@ function normalizeOnePieceDon(raw, pos){
     attribute: null,
     traits: '',
     text: fullName || '',
-    image_url: optcgImageUrl(imageId || id),
+    image_url: primaryImage,
+    image_candidates: candidates,
     price: firstPresent(raw, ['market_price','marketPrice','price','inventory_price','inventoryPrice'])
   };
 }
@@ -251,7 +262,7 @@ function hydrateRemoteCards(){
 // ---------- App state ----------
 var currentGame = 'onepiece';
 var currentTab = 'browse';
-var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set' };
+var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var deckSearchTerm = '';
 var onePieceAllowAnyColor = false;
 
@@ -320,6 +331,9 @@ function ensureActiveDeck(game){
   deck.tokens = deck.tokens || {};
   return deck;
 }
+function bucketTotal(bucket){
+  return Object.keys(bucket || {}).reduce(function(sum,k){ return sum + (bucket[k] || 0); }, 0);
+}
 function changeDeckQty(game, deck, bucket, num, delta){
   var cur = deck[bucket][num] || 0;
   var next = cur + delta;
@@ -327,6 +341,10 @@ function changeDeckQty(game, deck, bucket, num, delta){
   if(bucket === 'cards' && next > 4) next = 4;
   if(bucket === 'dons' && next > 10) next = 10;
   if(bucket === 'resources' && next > 10) next = 10;
+  if((bucket === 'dons' || bucket === 'resources') && next > cur){
+    var room = Math.max(0, 10 - (bucketTotal(deck[bucket]) - cur));
+    next = cur + Math.min(next - cur, room);
+  }
   if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
   saveState();
   if(next > cur){
@@ -343,11 +361,12 @@ function addCardToDeck(game, card){
     cacheImage(card.image_url);
   } else if(game === 'onepiece' && isOnePieceDonCard(card)){
     var dcur = deck.dons[card.number] || 0;
-    if(dcur >= 10){ toast('DON!! deck is full'); return; }
+    if(bucketTotal(deck.dons) >= 10){ toast('DON!! deck is full'); return; }
     deck.dons[card.number] = dcur + 1;
     toast('Added ' + card.name + ' to DON!! deck');
     cacheImage(card.image_url);
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
+    if(bucketTotal(deck.resources) >= 10){ toast('Resource deck is full'); return; }
     deck.resources[card.number] = (deck.resources[card.number]||0) + 1;
     toast('Added ' + card.name + ' to resource deck');
     cacheImage(card.image_url);
@@ -372,12 +391,14 @@ function addCardCopiesToDeck(game, card, count){
     changed = 1;
   } else if(game === 'onepiece' && isOnePieceDonCard(card)){
     var dcur = deck.dons[card.number] || 0;
-    var dnext = Math.max(0, Math.min(10, dcur + count));
+    var dRoom = Math.max(0, 10 - (bucketTotal(deck.dons) - dcur));
+    var dnext = Math.max(0, Math.min(10, dcur + (count > 0 ? Math.min(count, dRoom) : count)));
     if(dnext === 0) delete deck.dons[card.number]; else deck.dons[card.number] = dnext;
     changed = dnext - dcur;
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
     var rcur = deck.resources[card.number] || 0;
-    var rnext = Math.max(0, rcur + count);
+    var rRoom = Math.max(0, 10 - (bucketTotal(deck.resources) - rcur));
+    var rnext = Math.max(0, rcur + (count > 0 ? Math.min(count, rRoom) : count));
     deck.resources[card.number] = rnext;
     if(rnext === 0) delete deck.resources[card.number];
     changed = rnext - rcur;
@@ -397,7 +418,7 @@ function addCardCopiesToDeck(game, card, count){
     saveState();
     toast((changed > 0 ? 'Added ' : 'Removed ') + Math.abs(changed) + 'x ' + card.name);
   } else if(count > 0) {
-    toast(isOnePieceDonCard(card) ? 'DON!! deck is full' : 'Max 4 copies reached');
+    toast(isOnePieceDonCard(card) ? 'DON!! deck is full' : (game === 'gundam' && card.type === 'RESOURCE') ? 'Resource deck is full' : 'Max 4 copies reached');
   } else {
     toast('No copies to remove');
   }
@@ -658,7 +679,7 @@ function renderCacheStatus(){
 // ---------- Rendering: shared card tile ----------
 // True lazy loading via IntersectionObserver: only fetch a card image once its
 // tile actually scrolls into (near) view. Rendering a filtered list can create
-// up to 300 tiles at once, and firing an image request for every one of them
+// thousands of tiles, and firing an image request for every one of them
 // immediately can look like a burst/DoS to a third-party image host (this is
 // what happened to gundam-gcg.com, which started returning 503s under that
 // load) even though the same burst is fine against a beefier CDN. Loading
@@ -677,31 +698,47 @@ function getLazyObserver(){
       el.removeAttribute('data-lazy-url');
       el.removeAttribute('data-lazy-name');
       if(!url) return;
-      var img = new Image();
-      img.alt = name || '';
-      img.referrerPolicy = 'no-referrer';
-      img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
-      img.onerror = function(){ /* offline, unreachable, or rate-limited - keep text fallback */ };
-      img.src = url;
+      setImageWithFallback(el, url.split('|'), name);
     });
   }, { rootMargin: '400px 0px', threshold: 0.01 });
   return _lazyObserver;
 }
-function lazyLoadImage(el, url, name){
-  url = normalizeImageUrl(url);
-  if(!url) return;
-  var observer = getLazyObserver();
-  if(!observer){
-    // Fallback for browsers without IntersectionObserver: load immediately.
+function imageUrlsForCard(cardOrUrl){
+  if(!cardOrUrl) return [];
+  if(typeof cardOrUrl === 'string') return [normalizeImageUrl(cardOrUrl)];
+  var urls = [];
+  if(cardOrUrl.image_url) urls.push(cardOrUrl.image_url);
+  if(Array.isArray(cardOrUrl.image_candidates)) urls = urls.concat(cardOrUrl.image_candidates);
+  var seen = {};
+  return urls.map(normalizeImageUrl).filter(function(u){
+    if(!u || seen[u]) return false;
+    seen[u] = true;
+    return true;
+  });
+}
+function setImageWithFallback(el, urls, name){
+  var index = 0;
+  function tryNext(){
+    if(index >= urls.length) return;
     var img = new Image();
     img.alt = name || '';
     img.referrerPolicy = 'no-referrer';
     img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
-    img.onerror = function(){ /* offline or unreachable - keep text fallback */ };
-    img.src = url;
+    img.onerror = function(){ index++; tryNext(); };
+    img.src = urls[index];
+  }
+  tryNext();
+}
+function lazyLoadImage(el, cardOrUrl, name){
+  var urls = imageUrlsForCard(cardOrUrl);
+  if(urls.length === 0) return;
+  var observer = getLazyObserver();
+  if(!observer){
+    // Fallback for browsers without IntersectionObserver: load immediately.
+    setImageWithFallback(el, urls, name);
     return;
   }
-  el.setAttribute('data-lazy-url', url);
+  el.setAttribute('data-lazy-url', urls.join('|'));
   el.setAttribute('data-lazy-name', name || '');
   observer.observe(el);
 }
@@ -739,7 +776,7 @@ function cardTile(c, onClick){
       '<div class="sub">' + escapeHtml(c.number||'') + ' &middot; ' + escapeHtml(c.rarity||'') + '</div>' +
     '</div>';
   div.addEventListener('click', function(){ (onClick || openCardModal)(c); });
-  lazyLoadImage(div.querySelector('.thumb'), c.image_url, c.name);
+  lazyLoadImage(div.querySelector('.thumb'), c, c.name);
   return div;
 }
 
@@ -780,7 +817,7 @@ function openCardModal(c){
       '<h3 class="section-label">Other printings (' + variants.length + ')</h3>' +
       '<div class="printing-list" id="printing-list"></div>'
     ) : '');
-  lazyLoadImage(document.getElementById('modal-img'), c.image_url, c.name);
+  lazyLoadImage(document.getElementById('modal-img'), c, c.name);
   showModal();
   document.getElementById('modal-close').onclick = closeModal;
   document.getElementById('qty-minus').onclick = function(){
@@ -810,7 +847,7 @@ function openCardModal(c){
         '<div class="p-thumb"></div>' +
         '<div class="p-meta"><div class="p-name">' + escapeHtml(v.rarity||'') + '</div><div class="dsub">' + escapeHtml(v.id) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span class="p-qty">' + vQty + '</span><button data-act="plus">+</button></div>';
-      lazyLoadImage(row.querySelector('.p-thumb'), v.image_url, v.name);
+      lazyLoadImage(row.querySelector('.p-thumb'), v, v.name);
       row.querySelector('[data-act="minus"]').onclick = function(){
         setCollectionQty(v.game, v.id, collectionQty(v.game, v.id) - 1);
         row.querySelector('.p-qty').textContent = collectionQty(v.game, v.id);
@@ -873,9 +910,13 @@ function matchesFilters(c){
   if(filters.type && c.type !== filters.type) return false;
   if(filters.rarity && c.rarity !== filters.rarity) return false;
   if(filters.search){
-    var s = filters.search.toLowerCase();
-    var hay = ((c.name||'') + ' ' + (c.text||'') + ' ' + (c.number||'')).toLowerCase();
-    if(hay.indexOf(s) === -1) return false;
+    var s = filters.search.toLowerCase().trim();
+    if(filters.nameMode === 'exact'){
+      if((c.name||'').toLowerCase() !== s) return false;
+    } else {
+      var hay = ((c.name||'') + ' ' + (c.text||'') + ' ' + (c.number||'')).toLowerCase();
+      if(hay.indexOf(s) === -1) return false;
+    }
   }
   return true;
 }
@@ -902,15 +943,8 @@ function renderBrowse(){
     return;
   }
   var frag = document.createDocumentFragment();
-  filtered.slice(0,300).forEach(function(c){ frag.appendChild(cardTile(c)); });
+  filtered.forEach(function(c){ frag.appendChild(cardTile(c)); });
   grid.appendChild(frag);
-  if(filtered.length > 300){
-    var note = document.createElement('div');
-    note.className = 'result-count';
-    note.style.gridColumn = '1/-1';
-    note.textContent = 'Showing first 300 of ' + filtered.length + '. Narrow your search to see more.';
-    grid.appendChild(note);
-  }
 }
 
 // ---------- Deck view ----------
@@ -968,7 +1002,7 @@ function renderDeckView(){
       row.className = 'deck-row';
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
-      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
       row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, 1); };
@@ -988,7 +1022,7 @@ function renderDeckView(){
       row.className = 'deck-row';
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
-      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
       row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, 1); };
@@ -1012,7 +1046,7 @@ function renderDeckView(){
       row.className = 'deck-row';
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
-      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
       row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, 1); };
@@ -1035,7 +1069,7 @@ function renderDeckView(){
     row.className = 'deck-row';
     row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
       '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button><button data-act="plus10">+10</button></div>';
-    if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+    if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
     if(c) row.addEventListener('click', function(){ openCardModal(c); });
     row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'tokens', num, -1); };
     row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'tokens', num, 1); };
@@ -1073,18 +1107,19 @@ function renderDeckAddGrid(){
     var s = deckSearchTerm.toLowerCase();
     list = list.filter(function(c){ return ((c.name||'')+' '+(c.number||'')).toLowerCase().indexOf(s) !== -1; });
   }
-  list = list.slice(0,60);
   grid.innerHTML = '';
+  var frag = document.createDocumentFragment();
   list.forEach(function(c){
     if(game === 'onepiece' && !deck.leader && c.type === 'Leader'){
-      grid.appendChild(cardTile(c, function(card){
+      frag.appendChild(cardTile(c, function(card){
         addCardToDeck(game, card);
         renderDeckView();
       }));
     } else {
-      grid.appendChild(deckAddTile(c, game));
+      frag.appendChild(deckAddTile(c, game));
     }
   });
+  grid.appendChild(frag);
   if(list.length === 0) grid.innerHTML = '<div class="empty-state">No matches.</div>';
 }
 function deckAddTile(c, game){
@@ -1155,7 +1190,7 @@ function renderCollectionView(){
         '<div class="cthumb"></div>' +
         '<div class="cname">' + escapeHtml(r.card?r.card.name:r.num) + badge + missing + '</div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + r.owned + '</span><button data-act="plus">+</button></div>';
-      if(r.card) lazyLoadImage(row.querySelector('.cthumb'), r.card.image_url, r.card.name);
+      if(r.card) lazyLoadImage(row.querySelector('.cthumb'), r.card, r.card.name);
       row.querySelector('[data-act="minus"]').onclick = function(){ adjustOwnedByNumber(game, r.num, -1); renderCollectionView(); };
       row.querySelector('[data-act="plus"]').onclick = function(){ adjustOwnedByNumber(game, r.num, 1); renderCollectionView(); };
       list.appendChild(row);
@@ -1183,7 +1218,7 @@ function renderCollectionView(){
         '<div class="cthumb"></div>' +
         '<div class="cname">' + escapeHtml(c.name) + ' <span class="dsub">' + escapeHtml(c.rarity||'') + ' &middot; ' + escapeHtml(c.id) + '</span></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + owned + '</span><button data-act="plus">+</button></div>';
-      lazyLoadImage(row.querySelector('.cthumb'), c.image_url, c.name);
+      lazyLoadImage(row.querySelector('.cthumb'), c, c.name);
       row.querySelector('[data-act="minus"]').onclick = function(){ setCollectionQty(game, c.id, collectionQty(game,c.id)-1); renderCollectionView(); };
       row.querySelector('[data-act="plus"]').onclick = function(){ setCollectionQty(game, c.id, collectionQty(game,c.id)+1); renderCollectionView(); };
       list.appendChild(row);
@@ -1230,8 +1265,9 @@ document.querySelectorAll('.game-btn').forEach(function(btn){
     document.querySelectorAll('.game-btn').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
     currentGame = btn.dataset.game;
-    filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set' };
+    filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
     document.getElementById('search-input').value = '';
+    document.getElementById('filter-name-mode').value = 'contains';
     renderFilterOptions();
     renderCurrentView();
   });
@@ -1242,9 +1278,10 @@ document.getElementById('search-input').addEventListener('input', function(e){
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(renderBrowse, 150);
 });
-['filter-set','filter-color','filter-type','filter-rarity','filter-sort'].forEach(function(id){
+['filter-set','filter-color','filter-type','filter-rarity','filter-sort','filter-name-mode'].forEach(function(id){
   document.getElementById(id).addEventListener('change', function(e){
-    filters[id.replace('filter-','')] = e.target.value;
+    var key = id === 'filter-name-mode' ? 'nameMode' : id.replace('filter-','');
+    filters[key] = e.target.value;
     renderBrowse();
   });
 });
@@ -1253,9 +1290,11 @@ document.getElementById('filter-toggle').addEventListener('click', function(){
 });
 document.getElementById('filter-clear').addEventListener('click', function(){
   var s = filters.search;
-  filters = { search:s, set:'', color:'', type:'', rarity:'', sort:'set' };
+  var nameMode = filters.nameMode;
+  filters = { search:s, set:'', color:'', type:'', rarity:'', sort:'set', nameMode:nameMode };
   ['filter-set','filter-color','filter-type','filter-rarity'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('filter-sort').value = 'set';
+  document.getElementById('filter-name-mode').value = nameMode;
   renderBrowse();
 });
 document.getElementById('deck-search').addEventListener('input', function(e){
