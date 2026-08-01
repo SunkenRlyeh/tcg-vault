@@ -55,9 +55,9 @@ This app is already deployed and live at:
 Source repo: https://github.com/SunkenRlyeh/tcg-vault
 
 All files sit flat in the repo root (no data/ or icons/ subfolders) —
-index.html, styles.css, app.js, onepiece_cards.js, gundam_cards.js,
-manifest.json, sw.js, icon-192.png, icon-512.png — since GitHub's web
-upload doesn't reliably preserve nested folders when dragging files in.
+index.html, styles.css, app.js, google-config.js, onepiece_cards.js,
+gundam_cards.js, manifest.json, sw.js, icon-192.png, icon-512.png — since
+GitHub's web upload doesn't reliably preserve nested folders when dragging files in.
 Open the live URL above on your phone. After the first load, "Add to Home
 Screen" will be available, and everything you've cached will work offline.
 
@@ -85,7 +85,11 @@ can be used by testers:
   3. Configure the OAuth consent screen.
   4. Create an OAuth Client ID with application type "Web application".
   5. Add https://sunkenrlyeh.github.io as an authorized JavaScript origin.
-  6. Put that public client ID into GOOGLE_CLIENT_ID near the top of app.js.
+  6. Paste that public client ID into google-config.js:
+       window.TCG_VAULT_GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+
+After publishing the config change, hard refresh the app once on each device
+so the service worker picks up the new file.
 
 The app requests only the Drive app-data scope:
   https://www.googleapis.com/auth/drive.appdata

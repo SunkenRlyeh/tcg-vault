@@ -11,8 +11,8 @@ var escapeAttr = escapeHtml;
 function uniqSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort(); }
 function numOrInf(v){ var n=parseInt(v,10); return isNaN(n)?999:n; }
 
-// Create an OAuth Web client in Google Cloud and put its client ID here.
-// The ID is public by design; do not put API keys or client secrets in this app.
+// Configure this in google-config.js. The ID is public by design; do not put
+// API keys, client secrets, or tokens in this app.
 var GOOGLE_CLIENT_ID = window.TCG_VAULT_GOOGLE_CLIENT_ID || '';
 var GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 var SYNC_FILE_NAME = 'tcg-vault-sync.json';
@@ -872,7 +872,7 @@ function renderSyncStatus(){
   if(!status || !auto) return;
   auto.checked = !!(state.sync && state.sync.auto);
   if(!googleSyncConfigured()){
-    status.textContent = 'Google sync needs a Google OAuth Client ID in app.js before testers can connect.';
+    status.textContent = 'Google sync is not configured yet. Add your OAuth Web Client ID to google-config.js, then hard refresh.';
     return;
   }
   status.textContent = syncRuntime.status || (syncRuntime.accessToken ? 'Google sync connected.' : 'Google sync is not connected.');
@@ -883,7 +883,7 @@ function setSyncStatus(msg){
 }
 function getGoogleAccessToken(promptMode){
   return new Promise(function(resolve, reject){
-    if(!googleSyncConfigured()){ reject(new Error('Google OAuth Client ID is not configured.')); return; }
+    if(!googleSyncConfigured()){ reject(new Error('Google OAuth Client ID is not configured in google-config.js.')); return; }
     if(!window.google || !google.accounts || !google.accounts.oauth2){
       reject(new Error('Google sign-in library is still loading. Try again in a moment.'));
       return;

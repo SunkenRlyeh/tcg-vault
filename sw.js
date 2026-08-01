@@ -1,10 +1,11 @@
-const CACHE_NAME = 'tcg-vault-v22';
+const CACHE_NAME = 'tcg-vault-v23';
 const IMAGE_CACHE = 'tcgvault-images-v1';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './google-config.js',
   './manifest.json',
   './onepiece_cards.js',
   './gundam_cards.js',
