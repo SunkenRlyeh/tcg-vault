@@ -21,6 +21,13 @@ function normalizeImageUrl(url){
   return url;
 }
 
+function firstPresent(obj, keys){
+  for(var i=0; i<keys.length; i++){
+    if(obj && obj[keys[i]] != null && obj[keys[i]] !== '') return obj[keys[i]];
+  }
+  return null;
+}
+
 function colorToHex(color){
   if(!color) return '#4f8cff';
   var c = color.toLowerCase();
@@ -80,6 +87,10 @@ try {
 state.collection = state.collection || { onepiece:{}, gundam:{} };
 state.decks = state.decks || { onepiece:[], gundam:[] };
 state.activeDeck = state.activeDeck || { onepiece:null, gundam:null };
+state.decks.onepiece = state.decks.onepiece || [];
+state.decks.gundam = state.decks.gundam || [];
+state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; });
+state.decks.gundam.forEach(function(deck){ deck.resources = deck.resources || {}; });
 
 function saveState(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){ /* storage full or unavailable */ }
@@ -120,6 +131,122 @@ function getIndex(game){
   return idx;
 }
 function getCardById(game, id){ return getIndex(game).byId[id]; }
+function invalidateIndex(game){
+  if(game) delete gameIndexCache[game];
+  else gameIndexCache = {};
+}
+function mergeCards(game, incoming){
+  var target = game === 'onepiece' ? (window.ONEPIECE_CARDS = window.ONEPIECE_CARDS || []) : (window.GUNDAM_CARDS = window.GUNDAM_CARDS || []);
+  var seen = {};
+  target.forEach(function(c){ if(c && c.id) seen[c.id] = true; });
+  var added = 0;
+  incoming.forEach(function(c){
+    if(!c || !c.id || seen[c.id]) return;
+    target.push(c);
+    seen[c.id] = true;
+    added++;
+  });
+  if(added) invalidateIndex(game);
+  return added;
+}
+function parseEnvelope(payload){
+  if(Array.isArray(payload)) return payload;
+  if(payload && Array.isArray(payload.data)) return payload.data;
+  if(payload && Array.isArray(payload.results)) return payload.results;
+  if(payload && Array.isArray(payload.cards)) return payload.cards;
+  return [];
+}
+function fetchJson(url){
+  return fetch(url, { cache: 'no-store' }).then(function(resp){
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+  });
+}
+function optcgImageUrl(imageId){
+  if(!imageId) return null;
+  var s = String(imageId);
+  if(/^https?:\/\//i.test(s)) return s;
+  return 'https://optcgapi.com/media/static/Card_Images/' + s.replace(/\.(jpg|png|webp)$/i, '') + '.jpg';
+}
+function normalizeOnePieceDon(raw, pos){
+  var id = firstPresent(raw, ['id','card_id','cardID','don_id','donID','image_id','imageID','imageId']);
+  var imageId = firstPresent(raw, ['image_id','imageID','imageId','image','img','card_image','cardImage']);
+  var name = firstPresent(raw, ['name','card_name','cardName','don_name','donName']) || 'DON!! Card';
+  var fullName = firstPresent(raw, ['full_name','fullName','don_full_name','donFullName','display_name','displayName']);
+  var setName = firstPresent(raw, ['set_name','setName','deck_name','deckName','product_name','productName']);
+  var setCode = firstPresent(raw, ['set_code','setCode','set_id','setId','deck_id','deckId']);
+  var number = firstPresent(raw, ['number','card_number','cardNumber']);
+  if(!id) id = imageId || number || ('don_' + (pos + 1));
+  if(!number) number = String(id).toUpperCase().indexOf('DON') === 0 ? id : String(id);
+  return {
+    id: String(id),
+    number: String(number),
+    game: 'onepiece',
+    name: String(name),
+    set_code: setCode ? String(setCode) : 'DON',
+    set_name: setName ? String(setName) : (fullName ? String(fullName).replace(/^.* - /, '') : 'DON!! Cards'),
+    rarity: firstPresent(raw, ['rarity']) || 'DON!!',
+    type: 'DON!!',
+    color: '',
+    cost: null,
+    power: null,
+    life: null,
+    counter: null,
+    attribute: null,
+    traits: '',
+    text: fullName || '',
+    image_url: optcgImageUrl(imageId || id),
+    price: firstPresent(raw, ['market_price','marketPrice','price','inventory_price','inventoryPrice'])
+  };
+}
+function normalizeGundamCard(raw){
+  var id = firstPresent(raw, ['product_id','id']);
+  var num = firstPresent(raw, ['card_number','number']) || id;
+  var traits = raw.traits || raw.trait || '';
+  var links = raw.link_refs || raw.link || '';
+  return {
+    id: String(id || num),
+    number: String(num || id),
+    game: 'gundam',
+    name: firstPresent(raw, ['name']) || '',
+    set_code: firstPresent(raw, ['set_code']) || '',
+    set_name: firstPresent(raw, ['set_name','where_to_get']) || '',
+    rarity: firstPresent(raw, ['rarity']) || '',
+    type: firstPresent(raw, ['card_type','type']) || '',
+    color: firstPresent(raw, ['color']) || '',
+    cost: firstPresent(raw, ['cost']),
+    level: firstPresent(raw, ['level']),
+    ap: firstPresent(raw, ['ap','ap_raw']),
+    hp: firstPresent(raw, ['hp','hp_raw']),
+    zone: firstPresent(raw, ['zone']) || '-',
+    traits: Array.isArray(traits) ? traits.join(', ') : String(traits || ''),
+    link: Array.isArray(links) ? links.join(', ') : String(links || '-'),
+    text: firstPresent(raw, ['effect','text']) || '',
+    image_url: normalizeImageUrl(firstPresent(raw, ['image_url'])),
+    price: null
+  };
+}
+function hydrateRemoteCards(){
+  var tasks = [];
+  tasks.push(fetchJson('https://www.optcgapi.com/api/allDonCards/').then(function(payload){
+    var cards = parseEnvelope(payload).map(normalizeOnePieceDon).filter(function(c){ return c.image_url; });
+    return mergeCards('onepiece', cards);
+  }).catch(function(){ return 0; }));
+
+  ['ST01','ST02','ST03','ST04','ST05','ST06','ST07','ST08','ST09','ST10'].forEach(function(setCode){
+    tasks.push(fetchJson('https://api.gcgapi.com/v1/sets/' + setCode + '/cards').then(function(payload){
+      var cards = parseEnvelope(payload).map(normalizeGundamCard);
+      return mergeCards('gundam', cards);
+    }).catch(function(){ return 0; }));
+  });
+
+  Promise.all(tasks).then(function(results){
+    var total = results.reduce(function(a,b){ return a + b; }, 0);
+    if(!total) return;
+    renderFilterOptions();
+    renderCurrentView();
+  });
+}
 
 // ---------- App state ----------
 var currentGame = 'onepiece';
@@ -177,7 +304,7 @@ function getActiveDeck(game){
 function createDeck(game, name){
   var id = 'd' + Date.now() + Math.floor(Math.random()*1000);
   var deck = game === 'onepiece'
-    ? { id:id, name: name || 'New Deck', leader:null, cards:{} }
+    ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{} }
     : { id:id, name: name || 'New Deck', cards:{}, resources:{} };
   state.decks[game].push(deck);
   state.activeDeck[game] = id;
@@ -187,13 +314,17 @@ function createDeck(game, name){
 function ensureActiveDeck(game){
   if(getDecks(game).length===0) createDeck(game);
   if(!getActiveDeck(game)) state.activeDeck[game] = getDecks(game)[0].id;
-  return getActiveDeck(game);
+  var deck = getActiveDeck(game);
+  if(game === 'onepiece') deck.dons = deck.dons || {};
+  if(game === 'gundam') deck.resources = deck.resources || {};
+  return deck;
 }
 function changeDeckQty(game, deck, bucket, num, delta){
   var cur = deck[bucket][num] || 0;
   var next = cur + delta;
   if(next < 0) next = 0;
   if(bucket === 'cards' && next > 4) next = 4;
+  if(bucket === 'dons' && next > 10) next = 10;
   if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
   saveState();
   if(next > cur){
@@ -207,6 +338,12 @@ function addCardToDeck(game, card){
   if(game === 'onepiece' && card.type === 'Leader'){
     deck.leader = card.number;
     toast(card.name + ' set as leader');
+    cacheImage(card.image_url);
+  } else if(game === 'onepiece' && isOnePieceDonCard(card)){
+    var dcur = deck.dons[card.number] || 0;
+    if(dcur >= 10){ toast('DON!! deck is full'); return; }
+    deck.dons[card.number] = dcur + 1;
+    toast('Added ' + card.name + ' to DON!! deck');
     cacheImage(card.image_url);
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
     deck.resources[card.number] = (deck.resources[card.number]||0) + 1;
@@ -227,6 +364,11 @@ function addCardCopiesToDeck(game, card, count){
   if(game === 'onepiece' && card.type === 'Leader'){
     deck.leader = card.number;
     changed = 1;
+  } else if(game === 'onepiece' && isOnePieceDonCard(card)){
+    var dcur = deck.dons[card.number] || 0;
+    var dnext = Math.max(0, Math.min(10, dcur + count));
+    if(dnext === 0) delete deck.dons[card.number]; else deck.dons[card.number] = dnext;
+    changed = dnext - dcur;
   } else if(game === 'gundam' && card.type === 'RESOURCE'){
     var rcur = deck.resources[card.number] || 0;
     var rnext = Math.max(0, rcur + count);
@@ -244,7 +386,7 @@ function addCardCopiesToDeck(game, card, count){
     saveState();
     toast((changed > 0 ? 'Added ' : 'Removed ') + Math.abs(changed) + 'x ' + card.name);
   } else if(count > 0) {
-    toast('Max 4 copies reached');
+    toast(isOnePieceDonCard(card) ? 'DON!! deck is full' : 'Max 4 copies reached');
   } else {
     toast('No copies to remove');
   }
@@ -254,8 +396,10 @@ function deckLegality(game, deck){
   var errs = [];
   if(game === 'onepiece'){
     var total = 0; Object.keys(deck.cards).forEach(function(k){ total += deck.cards[k]; });
+    var donTotal = 0; Object.keys(deck.dons || {}).forEach(function(k){ donTotal += deck.dons[k]; });
     if(!deck.leader) errs.push('No leader selected');
     if(total !== 50) errs.push('Deck has ' + total + '/50 cards');
+    if(donTotal !== 10) errs.push('DON!! deck has ' + donTotal + '/10 cards');
     var overCount = 0; Object.keys(deck.cards).forEach(function(k){ if(deck.cards[k]>4) overCount++; });
     if(overCount) errs.push(overCount + ' card(s) exceed the 4-copy limit');
     if(deck.leader){
@@ -288,6 +432,9 @@ function sharesAnyColor(card, colors){
   if(!colors || colors.length === 0) return true;
   var cc = cardColors(card);
   return cc.some(function(col){ return colors.indexOf(col) >= 0; });
+}
+function isOnePieceDonCard(card){
+  return card && (card.type === 'DON!!' || /^don_/i.test(card.id || '') || /^DON!! Card/i.test(card.name || ''));
 }
 function deckCardEntries(game, deck){
   var idx = getIndex(game);
@@ -351,6 +498,13 @@ function deckToText(game, deck){
     var c = (idx.byNumber[num]||[])[0];
     lines.push(deck.cards[num] + 'x ' + num + (c ? ' ' + c.name : ''));
   });
+  if(game === 'onepiece'){
+    lines.push('-- DON!! Deck --');
+    Object.keys(deck.dons || {}).sort().forEach(function(num){
+      var c = (idx.byNumber[num]||[])[0];
+      lines.push(deck.dons[num] + 'x ' + num + (c ? ' ' + c.name : ''));
+    });
+  }
   if(game === 'gundam'){
     lines.push('-- Resources --');
     Object.keys(deck.resources).sort().forEach(function(num){
@@ -373,6 +527,7 @@ function importDeckText(text){
     if(!idx.byNumber[num]) return;
     var card = idx.byNumber[num][0];
     if(game === 'onepiece' && card.type === 'Leader'){ deck.leader = num; }
+    else if(game === 'onepiece' && isOnePieceDonCard(card)){ deck.dons[num] = Math.min(qty,10); }
     else if(game === 'gundam' && card.type === 'RESOURCE'){ deck.resources[num] = qty; }
     else { deck.cards[num] = Math.min(qty,4); }
     cacheImage(card.image_url);
@@ -420,6 +575,12 @@ function getRelevantImageUrls(){
         Object.keys(deck.resources).forEach(function(num){
           var c = (idx.byNumber[num]||[])[0];
           if(c && c.image_url) urls[c.image_url] = true;
+        });
+      }
+      if(game === 'onepiece' && deck.dons){
+        Object.keys(deck.dons).forEach(function(num){
+          var dc = (idx.byNumber[num]||[])[0];
+          if(dc && dc.image_url) urls[dc.image_url] = true;
         });
       }
       if(game === 'onepiece' && deck.leader){
@@ -738,8 +899,10 @@ function renderDeckView(){
 
   var leaderSlot = document.getElementById('deck-leader-slot');
   var resourceSection = document.getElementById('deck-resource-section');
+  var donSection = document.getElementById('deck-don-section');
   if(game === 'onepiece'){
     leaderSlot.style.display = 'block';
+    donSection.classList.remove('hidden');
     resourceSection.classList.add('hidden');
     if(deck.leader){
       var lc = (idx.byNumber[deck.leader]||[])[0];
@@ -750,6 +913,7 @@ function renderDeckView(){
     }
   } else {
     leaderSlot.style.display = 'none';
+    donSection.classList.add('hidden');
     resourceSection.classList.remove('hidden');
   }
 
@@ -795,6 +959,29 @@ function renderDeckView(){
       resList.appendChild(row);
     });
   }
+  if(game === 'onepiece'){
+    var donList = document.getElementById('don-list');
+    var dEntries = Object.keys(deck.dons || {}).map(function(k){ return [k, deck.dons[k]]; });
+    document.getElementById('don-count').textContent = dEntries.reduce(function(a,e){ return a+e[1]; },0);
+    donList.innerHTML = '';
+    if(dEntries.length === 0){
+      donList.innerHTML = '<div class="empty-state">No DON!! cards added yet.</div>';
+    }
+    dEntries.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {numeric:true}); });
+    dEntries.forEach(function(e){
+      var num = e[0], qty = e[1];
+      var c = (idx.byNumber[num]||[])[0];
+      var row = document.createElement('div');
+      row.className = 'deck-row';
+      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
+        '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
+      if(c) row.addEventListener('click', function(){ openCardModal(c); });
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, -1); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'dons', num, 1); };
+      donList.appendChild(row);
+    });
+  }
 
   renderDeckAddGrid();
 }
@@ -813,11 +1000,11 @@ function renderDeckAddGrid(){
       colorToggle.textContent = onePieceAllowAnyColor ? 'Any color: On' : 'Leader colors only';
       colorToggle.classList.toggle('active', onePieceAllowAnyColor);
       list = list.filter(function(c){
-        return c.type !== 'Leader' && (onePieceAllowAnyColor || sharesAnyColor(c, leaderColors));
+        return c.type !== 'Leader' && (isOnePieceDonCard(c) || onePieceAllowAnyColor || sharesAnyColor(c, leaderColors));
       });
     } else {
       colorToggle.classList.add('hidden');
-      list = list.filter(function(c){ return c.type === 'Leader'; });
+      list = list.filter(function(c){ return c.type === 'Leader' || isOnePieceDonCard(c); });
     }
   } else {
     colorToggle.classList.add('hidden');
@@ -829,7 +1016,7 @@ function renderDeckAddGrid(){
   list = list.slice(0,60);
   grid.innerHTML = '';
   list.forEach(function(c){
-    if(game === 'onepiece' && !deck.leader){
+    if(game === 'onepiece' && !deck.leader && c.type === 'Leader'){
       grid.appendChild(cardTile(c, function(card){
         addCardToDeck(game, card);
         renderDeckView();
@@ -884,6 +1071,7 @@ function renderCollectionView(){
     if(deck){
       Object.keys(deck.cards).forEach(function(n){ need[n] = (need[n]||0) + deck.cards[n]; });
       if(game === 'gundam') Object.keys(deck.resources).forEach(function(n){ need[n] = (need[n]||0) + deck.resources[n]; });
+      if(game === 'onepiece' && deck.dons) Object.keys(deck.dons).forEach(function(n){ need[n] = (need[n]||0) + deck.dons[n]; });
       if(game === 'onepiece' && deck.leader) need[deck.leader] = (need[deck.leader]||0) + 1;
     }
     var rows = Object.keys(need).map(function(num){
@@ -1051,10 +1239,11 @@ document.getElementById('deck-clear').addEventListener('click', function(){
   var deck = getActiveDeck(game);
   if(!deck) return;
   var msg = game === 'onepiece'
-    ? 'Clear all cards from "' + deck.name + '"? Your leader will stay selected.'
+    ? 'Clear all main deck and DON!! cards from "' + deck.name + '"? Your leader will stay selected.'
     : 'Clear all cards and resources from "' + deck.name + '"?';
   if(!confirm(msg)) return;
   deck.cards = {};
+  if(game === 'onepiece') deck.dons = {};
   if(game === 'gundam') deck.resources = {};
   saveState();
   renderDeckView();
@@ -1071,6 +1260,7 @@ document.getElementById('modal-overlay').addEventListener('click', function(e){
 function init(){
   renderFilterOptions();
   renderCurrentView();
+  hydrateRemoteCards();
   if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
     navigator.serviceWorker.register('sw.js').catch(function(){});
   }
