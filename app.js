@@ -360,13 +360,22 @@ function hydrateRemoteCards(){
   });
 }
 function officialGundamImageCandidates(id){
-  var scrydexIds = [id];
-  if(/_p\d+$/i.test(id)){
-    scrydexIds.push(id.replace(/_p\d+$/i, ''));
+  var scrydexIds = [];
+  if(/^EXRP-/i.test(id)){
+    // Scrydex currently has real front images for EXRP-001/002 only. Other
+    // EXRP image URLs resolve to a generic card back, which looks like loaded
+    // art to the browser and stops the fallback chain too early.
+    if(/^EXRP-001$/i.test(id)) scrydexIds.push('BETA-EXRP-001', 'EXRP-001');
+    if(/^EXRP-002$/i.test(id)) scrydexIds.push('EXRP-002');
+  } else {
+    scrydexIds.push(id);
+    if(/_p\d+$/i.test(id)){
+      scrydexIds.push(id.replace(/_p\d+$/i, ''));
+    }
+    scrydexIds.push(id + 'A');
+    scrydexIds.push('BETA-' + id);
+    scrydexIds.push('BETA-' + id + 'A');
   }
-  scrydexIds.push(id + 'A');
-  scrydexIds.push('BETA-' + id);
-  scrydexIds.push('BETA-' + id + 'A');
   var scrydexUrls = [];
   scrydexIds.forEach(function(scrydexId){
     scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/large');
@@ -438,19 +447,7 @@ function applyStaticGundamSupplements(){
   var exResourceText = '(At the start of the game, the second-turn player places 1 active EX Resource into their resource area.)\n(Rest an EX Resource then exile it from the game when paying a cost.)';
   var exResourcePromos = [
     ['EXRP-001', 'GAMA Expo 2025'],
-    ['EXRP-002', 'Official Card Case Set 01'],
-    ['EXRP-003', 'Bandai Card Games Fest 25-26'],
-    ['EXRP-004', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-005', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-006', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-007', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-008', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-009', 'Premium Card Collection Gundam Assemble - PC01A'],
-    ['EXRP-010', 'Premium Card Collection Gundam Assemble - PC02A'],
-    ['EXRP-011', 'Premium Card Collection Gundam Assemble - PC02A'],
-    ['EXRP-012', 'Premium Card Collection Gundam Assemble - PC02A'],
-    ['EXRP-013', 'Premium Card Collection Gundam Assemble - PC02A'],
-    ['EXRP-014', 'GAMA Expo 2026']
+    ['EXRP-002', 'Official Card Case Set 01']
   ];
   var supplements = [
     gundamStarterSupplement('ST04-001', 'ST04-001', 'ST04', 'SEED Strike', 'LR', 'Aile Strike Gundam', 'White', 4, 5, 4, 4, 'Space Earth', 'Earth Alliance', '[Kira Yamato]', aileText),
