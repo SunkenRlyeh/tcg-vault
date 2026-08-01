@@ -5,6 +5,16 @@
 // disambiguate alt-art and reprint-across-sets printings), and writes the
 // result back into the "price" field of onepiece_cards.js and gundam_cards.js.
 //
+// Before pricing runs, it also pulls the Gundam starter deck boxes (ST01-10)
+// and the EX Resource / EX Base / Unit Token pools straight from gcgapi.com
+// and folds in anything missing from gundam_cards.js. The live app fetches
+// those same endpoints client-side on every page load, but only keeps the
+// result in memory - so without this step, those cards (Close Combat and
+// every other starter-deck card, the original EX Resources, every EX
+// Resource promo) never actually exist in the file this script reads, and
+// can never be priced or have their art mirrored no matter how good the
+// matching logic is.
+//
 // Runs on GitHub Actions (see .github/workflows/update-tcg-prices.yml) on a
 // daily schedule, so prices stay current without any manual work.
 //
@@ -101,6 +111,138 @@ async function buildCategoryPriceMap(categoryId, label) {
 
 function normSet(s) { return String(s || '').trim().toLowerCase(); }
 
+// --- Runtime-only Gundam card hydration -----------------------------------
+//
+// The live app (app.js, hydrateRemoteCards()) fetches a handful of Gundam
+// card groups straight from gcgapi.com every time it loads - the ST01-ST10
+// starter deck boxes, plus anything tagged EX RESOURCE / EX BASE / UNIT
+// TOKEN - and merges them into window.GUNDAM_CARDS purely in memory. That
+// merge is never written back to gundam_cards.js on disk, which means this
+// script (and the image-mirroring workflow, which also only reads the file
+// on disk) can never see those cards at all - not "can't price them right,"
+// literally invisible. That's why starter-deck cards like Close Combat
+// (ST03-013) and most EX Resources (the original EXR-001/002/003 plus every
+// EXRP-* promo) never got a price no matter how the matching logic below was
+// tuned.
+//
+// The fix: pull the exact same gcgapi.com endpoints here, normalize them the
+// same way app.js does, and fold any card we don't already have into the
+// array before pricing runs - so they become permanent, priceable,
+// mirrorable entries instead of vanishing every time the tab closes.
+const GCGAPI_BASE = 'https://api.gcgapi.com/v1';
+const GUNDAM_STARTER_SETS = ['ST01', 'ST02', 'ST03', 'ST04', 'ST05', 'ST06', 'ST07', 'ST08', 'ST09', 'ST10'];
+const GUNDAM_RUNTIME_TYPES = ['EX RESOURCE', 'EX BASE', 'UNIT TOKEN'];
+
+function firstPresent(obj, keys) {
+  for (const k of keys) {
+    if (obj && obj[k] != null && obj[k] !== '') return obj[k];
+  }
+  return null;
+}
+
+function normalizeGcgImageUrl(url) {
+  if (!url) return url;
+  if (url.indexOf('gundam-gcg.com/') !== -1) {
+    return url.replace(/(\.webp\?\d+)$/, '$1=');
+  }
+  return url;
+}
+
+function parseEnvelope(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  if (payload && Array.isArray(payload.results)) return payload.results;
+  if (payload && Array.isArray(payload.cards)) return payload.cards;
+  return [];
+}
+
+// Mirrors app.js's normalizeGundamCard field-for-field, so a card that gets
+// persisted here looks identical to the one the client would otherwise have
+// built in memory.
+function normalizeGundamCard(raw) {
+  const id = firstPresent(raw, ['product_id', 'id']);
+  const num = firstPresent(raw, ['card_number', 'number']) || id;
+  const traits = raw.traits || raw.trait || '';
+  const links = raw.link_refs || raw.link || '';
+  const image = normalizeGcgImageUrl(firstPresent(raw, ['image_url']));
+  const imageCandidates = [image];
+  if (id) {
+    imageCandidates.push('https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=');
+    imageCandidates.push('https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=');
+  }
+  if (num && num !== id) {
+    imageCandidates.push('https://www.gundam-gcg.com/en/images/cards/card/' + num + '.webp?260715=');
+    imageCandidates.push('https://www.gundam-gcg.com/jp/images/cards/card/' + num + '.webp?260715=');
+  }
+  return {
+    id: String(id || num),
+    number: String(num || id),
+    game: 'gundam',
+    name: firstPresent(raw, ['name']) || '',
+    set_code: firstPresent(raw, ['set_code']) || '',
+    set_name: firstPresent(raw, ['set_name', 'where_to_get']) || '',
+    rarity: firstPresent(raw, ['rarity']) || '',
+    type: firstPresent(raw, ['card_type', 'type']) || '',
+    color: firstPresent(raw, ['color']) || '',
+    cost: firstPresent(raw, ['cost']),
+    level: firstPresent(raw, ['level']),
+    ap: firstPresent(raw, ['ap', 'ap_raw']),
+    hp: firstPresent(raw, ['hp', 'hp_raw']),
+    zone: firstPresent(raw, ['zone']) || '-',
+    traits: Array.isArray(traits) ? traits.join(', ') : String(traits || ''),
+    link: Array.isArray(links) ? links.join(', ') : String(links || '-'),
+    text: firstPresent(raw, ['effect', 'text']) || '',
+    image_url: image,
+    image_candidates: imageCandidates.filter(Boolean),
+    price: null,
+  };
+}
+
+// Fetches every card the live app would otherwise only ever see at runtime:
+// the 10 starter deck boxes plus the EX Resource / EX Base / Unit Token
+// pools (which span sets and promos, not just one box). Each request is
+// independent and best-effort - if gcgapi.com hiccups on one set or type we
+// skip just that one rather than failing the whole run.
+async function fetchRuntimeOnlyGundamCards() {
+  const found = [];
+  for (const setCode of GUNDAM_STARTER_SETS) {
+    try {
+      const payload = await fetchJson(GCGAPI_BASE + '/sets/' + setCode + '/cards');
+      found.push(...parseEnvelope(payload).map(normalizeGundamCard));
+    } catch (e) {
+      console.log('  skip gcgapi set ' + setCode + ': ' + e.message);
+    }
+    await sleep(150);
+  }
+  for (const type of GUNDAM_RUNTIME_TYPES) {
+    try {
+      const payload = await fetchJson(GCGAPI_BASE + '/cards?card_type=' + encodeURIComponent(type) + '&limit=250');
+      found.push(...parseEnvelope(payload).map(normalizeGundamCard));
+    } catch (e) {
+      console.log('  skip gcgapi type ' + type + ': ' + e.message);
+    }
+    await sleep(150);
+  }
+  return found;
+}
+
+// Folds newly-fetched cards into our on-disk array. Never overwrites a card
+// we already have - this only ever fills gaps, so anything already
+// committed (including any price already set on it) is left untouched.
+function mergeRuntimeCards(cards, incoming) {
+  const existing = {};
+  cards.forEach((c) => { if (c && c.id) existing[c.id] = c; });
+  let added = 0;
+  incoming.forEach((c) => {
+    if (!c || !c.id) return;
+    if (existing[c.id]) return;
+    cards.push(c);
+    existing[c.id] = c;
+    added++;
+  });
+  return added;
+}
+
 // Applies a TCGPlayer price map onto our own card array (mutates in place).
 // Returns { matched, updated, cleared, total } counters for reporting.
 //
@@ -191,9 +333,15 @@ async function main() {
   src = fs.readFileSync('gundam_cards.js', 'utf8');
   eval(src);
   cards = global.window.GUNDAM_CARDS;
+
+  console.log('Fetching runtime-only Gundam cards (starter decks, EX resources/bases, tokens) from gcgapi.com ...');
+  const runtimeCards = await fetchRuntimeOnlyGundamCards();
+  const addedCount = mergeRuntimeCards(cards, runtimeCards);
+  console.log('Gundam: merged ' + addedCount + ' previously runtime-only card(s) into the static file');
+
   const gdStats = applyPrices(cards, gdMap);
   console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', cleared ' + gdStats.cleared);
-  if (gdStats.updated > 0 || gdStats.cleared > 0) {
+  if (addedCount > 0 || gdStats.updated > 0 || gdStats.cleared > 0) {
     fs.writeFileSync('gundam_cards.js', 'window.GUNDAM_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
   }
@@ -212,7 +360,7 @@ async function main() {
   // something to commit, so the cron trigger never goes stale.
   const log = 'Last price sync: ' + new Date().toISOString() + '\n'
     + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', cleared ' + opStats.cleared + '\n'
-    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', cleared ' + gdStats.cleared + '\n';
+    + 'Gundam: merged ' + addedCount + ' runtime-only card(s), matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', cleared ' + gdStats.cleared + '\n';
   fs.writeFileSync('PRICE_SYNC_LOG.txt', log);
 }
 
