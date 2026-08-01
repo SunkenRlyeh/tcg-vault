@@ -183,13 +183,20 @@ function invalidateIndex(game){
 }
 function mergeCards(game, incoming){
   var target = game === 'onepiece' ? (window.ONEPIECE_CARDS = window.ONEPIECE_CARDS || []) : (window.GUNDAM_CARDS = window.GUNDAM_CARDS || []);
-  var seen = {};
-  target.forEach(function(c){ if(c && c.id) seen[c.id] = true; });
+  var existing = {};
+  target.forEach(function(c){ if(c && c.id) existing[c.id] = c; });
   var added = 0;
   incoming.forEach(function(c){
-    if(!c || !c.id || seen[c.id]) return;
+    if(!c || !c.id) return;
+    if(existing[c.id]){
+      if(c.image_url && !existing[c.id].image_url) existing[c.id].image_url = c.image_url;
+      if(c.image_candidates){
+        existing[c.id].image_candidates = imageUrlsForCard(existing[c.id]).concat(c.image_candidates);
+      }
+      return;
+    }
     target.push(c);
-    seen[c.id] = true;
+    existing[c.id] = c;
     added++;
   });
   if(added) invalidateIndex(game);
@@ -261,6 +268,16 @@ function normalizeGundamCard(raw){
   var num = firstPresent(raw, ['card_number','number']) || id;
   var traits = raw.traits || raw.trait || '';
   var links = raw.link_refs || raw.link || '';
+  var image = normalizeImageUrl(firstPresent(raw, ['image_url']));
+  var imageCandidates = [image];
+  if(id){
+    imageCandidates.push('https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=');
+    imageCandidates.push('https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=');
+  }
+  if(num && num !== id){
+    imageCandidates.push('https://www.gundam-gcg.com/en/images/cards/card/' + num + '.webp?260715=');
+    imageCandidates.push('https://www.gundam-gcg.com/jp/images/cards/card/' + num + '.webp?260715=');
+  }
   return {
     id: String(id || num),
     number: String(num || id),
@@ -279,9 +296,16 @@ function normalizeGundamCard(raw){
     traits: Array.isArray(traits) ? traits.join(', ') : String(traits || ''),
     link: Array.isArray(links) ? links.join(', ') : String(links || '-'),
     text: firstPresent(raw, ['effect','text']) || '',
-    image_url: normalizeImageUrl(firstPresent(raw, ['image_url'])),
+    image_url: image,
+    image_candidates: imageCandidates.filter(Boolean),
     price: null
   };
+}
+function fetchGundamCardsByType(type){
+  return fetchJson('https://api.gcgapi.com/v1/cards?card_type=' + encodeURIComponent(type) + '&limit=250').then(function(payload){
+    var cards = parseEnvelope(payload).map(normalizeGundamCard);
+    return mergeCards('gundam', cards);
+  }).catch(function(){ return 0; });
 }
 function hydrateRemoteCards(){
   var tasks = [];
@@ -295,6 +319,9 @@ function hydrateRemoteCards(){
       var cards = parseEnvelope(payload).map(normalizeGundamCard);
       return mergeCards('gundam', cards);
     }).catch(function(){ return 0; }));
+  });
+  ['EX RESOURCE','EX BASE','UNIT TOKEN'].forEach(function(type){
+    tasks.push(fetchGundamCardsByType(type));
   });
 
   Promise.all(tasks).then(function(results){
