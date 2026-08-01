@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tcg-vault-v31';
+const CACHE_NAME = 'tcg-vault-v32';
 const IMAGE_CACHE = 'tcgvault-images-v1';
 const ASSETS = [
   './',
@@ -16,7 +16,7 @@ const ASSETS = [
 // Hosts that serve card artwork. Images from these hosts are ONLY cached when
 // the app explicitly asks (via cache.add from app.js, when a card is added to
 // a deck or the trade binder) — never the whole library, per user request.
-const IMAGE_HOSTS = ['optcgapi.com', 'gundam-gcg.com', 'images.scrydex.com', 'static.gundamcardlist.com'];
+const IMAGE_HOSTS = ['optcgapi.com', 'gundam-gcg.com', 'images.scrydex.com', 'static.gundamcardlist.com', 'cardgamesearcher.com'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
