@@ -419,10 +419,7 @@ function officialGundamImageCandidates(id){
 }
 var GUNDAM_SPECIAL_IMAGE_URLS = {
   'EXBP-018': [
-    'https://www.gundam-gcg.com/jp/images/cards/card/EXBP-018.webp?260715=',
-    'https://www.gundam-gcg.com/jp/images/cards/card/EXBP-018.webp?260715',
-    'https://www.gundam-gcg.com/en/images/cards/card/EXBP-018.webp?260715=',
-    'https://www.gundam-gcg.com/en/images/cards/card/EXBP-018.webp?260715'
+    'https://www.gundam-gcg.com/gcg/bccard/jp/news/2026/02/03/0SvTY6C4SeNS5nws/%E3%82%B9%E3%83%A9%E3%82%A4%E3%83%891.webp'
   ]
 };
 var GUNDAM_CARDLIST_IMAGE_IDS = {
