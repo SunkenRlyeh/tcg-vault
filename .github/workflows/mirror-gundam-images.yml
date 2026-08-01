@@ -1,0 +1,102 @@
+name: Mirror Gundam card images
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract unique Gundam image URLs
+        run: |
+          node -e "
+          global.window = {};
+          const fs = require('fs');
+          eval(fs.readFileSync('gundam_cards.js','utf8'));
+          const urls = [...new Set(window.GUNDAM_CARDS.map(c => c.image_url).filter(Boolean))];
+          fs.writeFileSync('urls.txt', urls.join('\n'));
+          console.log('unique urls:', urls.length);
+          "
+
+      - name: Download images (direct, no Referer, browser-like UA)
+        run: |
+          set -e
+          mkdir -p gundam-images
+          fail=0
+          total=0
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            total=$((total+1))
+            fname=$(basename "${url%%\?*}")
+            out="gundam-images/$fname"
+            if [ -s "$out" ]; then
+              continue
+            fi
+            if ! curl -sS -f -L \
+                -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+                -H "Accept: image/webp,image/*,*/*;q=0.8" \
+                -o "$out" "$url"; then
+              echo "FAILED: $url"
+              rm -f "$out"
+              fail=$((fail+1))
+            fi
+            sleep 0.15
+          done < urls.txt
+          echo "total=$total failed=$fail"
+          downloaded=$(find gundam-images -type f | wc -l)
+          echo "downloaded files: $downloaded"
+          if [ "$downloaded" -lt 1 ]; then
+            echo "No images downloaded at all - aborting before touching gundam_cards.js"
+            exit 1
+          fi
+
+      - name: Rewrite gundam_cards.js to point at local mirrored images
+        run: |
+          node -e "
+          global.window = {};
+          const fs = require('fs');
+          eval(fs.readFileSync('gundam_cards.js','utf8'));
+          let rewritten = 0, missing = 0;
+          const cards = window.GUNDAM_CARDS.map(c => {
+            if (c.image_url) {
+              const fname = c.image_url.split('?')[0].split('/').pop();
+              const local = 'gundam-images/' + fname;
+              if (fs.existsSync(local)) {
+                c.image_url = './' + local;
+                rewritten++;
+              } else {
+                missing++;
+              }
+            }
+            return c;
+          });
+          fs.writeFileSync('gundam_cards.js', 'window.GUNDAM_CARDS = ' + JSON.stringify(cards) + ';\n');
+          console.log('rewritten:', rewritten, 'missing (left as original URL):', missing);
+          "
+          node --check gundam_cards.js
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gundam-images gundam_cards.js urls.txt
+          git rm -f urls.txt --cached 2>/dev/null || true
+          rm -f urls.txt
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Mirror Gundam card images into repo (same-origin, fixes hotlink block)"
+            git push
+          fi
