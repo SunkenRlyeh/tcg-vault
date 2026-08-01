@@ -607,6 +607,28 @@ function ensureActiveDeck(game){
 function bucketTotal(bucket){
   return Object.keys(bucket || {}).reduce(function(sum,k){ return sum + (bucket[k] || 0); }, 0);
 }
+function deckCardKey(card){ return card.id || card.number; }
+function cardForDeckKey(idx, key){
+  return idx.byId[key] || (idx.byNumber[key] || [])[0] || null;
+}
+function cardNumberForDeckKey(idx, key){
+  var c = cardForDeckKey(idx, key);
+  return (c && c.number) || key;
+}
+function deckMainQtyByNumber(deck, idx, number, exceptKey){
+  return Object.keys(deck.cards || {}).reduce(function(sum, key){
+    if(key === exceptKey) return sum;
+    return cardNumberForDeckKey(idx, key) === number ? sum + (deck.cards[key] || 0) : sum;
+  }, 0);
+}
+function deckMainQtyGroups(deck, idx){
+  var groups = {};
+  Object.keys(deck.cards || {}).forEach(function(key){
+    var num = cardNumberForDeckKey(idx, key);
+    groups[num] = (groups[num] || 0) + (deck.cards[key] || 0);
+  });
+  return groups;
+}
 function setLimitedBucketQty(deck, bucket, num, qty, limit){
   var cur = deck[bucket][num] || 0;
   var room = Math.max(0, limit - (bucketTotal(deck[bucket]) - cur));
@@ -615,10 +637,16 @@ function setLimitedBucketQty(deck, bucket, num, qty, limit){
   return next;
 }
 function changeDeckQty(game, deck, bucket, num, delta){
+  var idx = getIndex(game);
   var cur = deck[bucket][num] || 0;
   var next = cur + delta;
   if(next < 0) next = 0;
-  if(bucket === 'cards' && next > 4) next = 4;
+  if(bucket === 'cards'){
+    var cForLimit = cardForDeckKey(idx, num);
+    var cardNumber = (cForLimit && cForLimit.number) || num;
+    var roomMain = Math.max(0, 4 - deckMainQtyByNumber(deck, idx, cardNumber, num));
+    if(next > roomMain) next = roomMain;
+  }
   if(bucket === 'dons' && next > 10) next = 10;
   if(bucket === 'resources' && next > 10) next = 10;
   if((bucket === 'dons' || bucket === 'resources') && next > cur){
@@ -628,7 +656,7 @@ function changeDeckQty(game, deck, bucket, num, delta){
   if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
   saveState();
   if(next > cur){
-    var c = (getIndex(game).byNumber[num]||[])[0];
+    var c = bucket === 'cards' ? cardForDeckKey(idx, num) : (idx.byNumber[num]||[])[0];
     if(c) cacheImage(c.image_url);
   }
   renderDeckView();
@@ -663,9 +691,10 @@ function addCardToDeck(game, card){
     toast('Added ' + card.name + ' to tokens');
     cacheImage(card.image_url);
   } else {
-    var cur = deck.cards[card.number] || 0;
-    if(cur >= 4){ toast('Max 4 copies reached'); return; }
-    deck.cards[card.number] = cur + 1;
+    var key = deckCardKey(card);
+    var cur = deck.cards[key] || 0;
+    if(deckMainQtyByNumber(deck, getIndex(game), card.number) >= 4){ toast('Max 4 copies reached'); return; }
+    deck.cards[key] = cur + 1;
     toast('Added ' + card.name);
     cacheImage(card.image_url);
   }
@@ -706,9 +735,11 @@ function addCardCopiesToDeck(game, card, count){
     if(tnext === 0) delete deck.tokens[card.number]; else deck.tokens[card.number] = tnext;
     changed = tnext - tcur;
   } else {
-    var cur = deck.cards[card.number] || 0;
-    var next = Math.max(0, Math.min(4, cur + count));
-    if(next === 0) delete deck.cards[card.number]; else deck.cards[card.number] = next;
+    var key = deckCardKey(card);
+    var cur = deck.cards[key] || 0;
+    var room = Math.max(0, 4 - deckMainQtyByNumber(deck, getIndex(game), card.number, key));
+    var next = Math.max(0, Math.min(room, cur + count));
+    if(next === 0) delete deck.cards[key]; else deck.cards[key] = next;
     changed = next - cur;
   }
   if(changed !== 0){
@@ -730,14 +761,15 @@ function deckLegality(game, deck){
     if(!deck.leader) errs.push('No leader selected');
     if(total !== 50) errs.push('Deck has ' + total + '/50 cards');
     if(donTotal !== 10) errs.push('DON!! deck has ' + donTotal + '/10 cards');
-    var overCount = 0; Object.keys(deck.cards).forEach(function(k){ if(deck.cards[k]>4) overCount++; });
+    var onePieceGroups = deckMainQtyGroups(deck, idx);
+    var overCount = 0; Object.keys(onePieceGroups).forEach(function(k){ if(onePieceGroups[k]>4) overCount++; });
     if(overCount) errs.push(overCount + ' card(s) exceed the 4-copy limit');
     if(deck.leader){
       var leaderCard = (idx.byNumber[deck.leader]||[])[0];
       var leaderColors = ((leaderCard && leaderCard.color)||'').split(/[\s,\/]+/).filter(Boolean);
       var mismatched = 0;
-      Object.keys(deck.cards).forEach(function(num){
-        var cc = (idx.byNumber[num]||[])[0];
+      Object.keys(deck.cards).forEach(function(key){
+        var cc = cardForDeckKey(idx, key);
         if(!cc) return;
         var ccColors = ((cc.color)||'').split(/[\s,\/]+/).filter(Boolean);
         var match = ccColors.some(function(col){ return leaderColors.indexOf(col) >= 0; });
@@ -750,7 +782,8 @@ function deckLegality(game, deck){
     var rtotal = 0; Object.keys(deck.resources).forEach(function(k){ rtotal += deck.resources[k]; });
     if(mtotal !== 50) errs.push('Main deck has ' + mtotal + '/50 cards');
     if(rtotal !== 10) errs.push('Resource deck has ' + rtotal + '/10 cards');
-    var over2 = 0; Object.keys(deck.cards).forEach(function(k){ if(deck.cards[k]>4) over2++; });
+    var gundamGroups = deckMainQtyGroups(deck, idx);
+    var over2 = 0; Object.keys(gundamGroups).forEach(function(k){ if(gundamGroups[k]>4) over2++; });
     if(over2) errs.push(over2 + ' card(s) exceed the 4-copy limit');
     var colors = gundamDeckColors(deck, idx);
     if(colors.length > 2 && !deck.allowExtraColors) errs.push('Deck has ' + colors.length + ' colors (' + colors.join(', ') + '); Gundam decks are limited to 2 colors');
@@ -759,8 +792,8 @@ function deckLegality(game, deck){
 }
 function gundamDeckColors(deck, idx){
   var seen = {};
-  Object.keys(deck.cards || {}).forEach(function(num){
-    var c = (idx.byNumber[num]||[])[0];
+  Object.keys(deck.cards || {}).forEach(function(key){
+    var c = cardForDeckKey(idx, key);
     cardColors(c).forEach(function(color){ seen[color] = true; });
   });
   return Object.keys(seen).sort();
@@ -797,11 +830,13 @@ function quickStepsForCard(game, card){
 }
 function deckCardEntries(game, deck){
   var idx = getIndex(game);
-  return Object.keys(deck.cards || {}).map(function(num){
+  return Object.keys(deck.cards || {}).map(function(key){
+    var card = cardForDeckKey(idx, key);
     return {
-      num: num,
-      qty: deck.cards[num],
-      card: (idx.byNumber[num]||[])[0]
+      key: key,
+      num: cardNumberForDeckKey(idx, key),
+      qty: deck.cards[key],
+      card: card
     };
   }).filter(function(e){ return e.card && e.qty > 0; });
 }
@@ -853,9 +888,9 @@ function deckToText(game, deck){
     var lc = (idx.byNumber[deck.leader]||[])[0];
     lines.push('Leader: ' + deck.leader + (lc ? ' ' + lc.name : ''));
   }
-  Object.keys(deck.cards).sort().forEach(function(num){
-    var c = (idx.byNumber[num]||[])[0];
-    lines.push(deck.cards[num] + 'x ' + num + (c ? ' ' + c.name : ''));
+  Object.keys(deck.cards).sort().forEach(function(key){
+    var c = cardForDeckKey(idx, key);
+    lines.push(deck.cards[key] + 'x ' + key + (c ? ' ' + c.name + (c.rarity ? ' [' + c.rarity + ']' : '') : ''));
   });
   if(game === 'onepiece'){
     lines.push('-- DON!! Deck --');
@@ -894,19 +929,25 @@ function importDeckText(text){
   var idx = getIndex(game);
   var added = 0;
   text.split('\n').forEach(function(line){
-    var m = line.match(/(\d+)\s*x?\s*([A-Za-z0-9\-]+)/i);
+    var m = line.match(/(\d+)\s*x?\s*([A-Za-z0-9\-_]+)/i);
     if(!m) return;
     var qty = parseInt(m[1],10);
-    var num = m[2].toUpperCase();
-    if(!idx.byNumber[num]) return;
-    var card = idx.byNumber[num][0];
+    var rawKey = m[2];
+    var num = rawKey.toUpperCase();
+    var card = idx.byId[rawKey] || idx.byId[num] || (idx.byNumber[num]||[])[0];
+    if(!card) return;
     if(game === 'onepiece' && card.type === 'Leader'){ deck.leader = num; }
-    else if(game === 'onepiece' && isOnePieceDonCard(card)){ setLimitedBucketQty(deck, 'dons', num, qty, 10); }
-    else if(game === 'gundam' && card.type === 'RESOURCE'){ setLimitedBucketQty(deck, 'resources', num, qty, 10); }
-    else if(game === 'gundam' && isExResourceCard(card)){ deck.exResources[num] = qty; }
-    else if(game === 'gundam' && isExBaseCard(card)){ deck.exBases[num] = qty; }
-    else if(isTokenCard(card)){ deck.tokens[num] = qty; }
-    else { deck.cards[num] = Math.min(qty,4); }
+    else if(game === 'onepiece' && isOnePieceDonCard(card)){ setLimitedBucketQty(deck, 'dons', card.number, qty, 10); }
+    else if(game === 'gundam' && card.type === 'RESOURCE'){ setLimitedBucketQty(deck, 'resources', card.number, qty, 10); }
+    else if(game === 'gundam' && isExResourceCard(card)){ deck.exResources[card.number] = qty; }
+    else if(game === 'gundam' && isExBaseCard(card)){ deck.exBases[card.number] = qty; }
+    else if(isTokenCard(card)){ deck.tokens[card.number] = qty; }
+    else {
+      var key = deckCardKey(card);
+      var room = Math.max(0, 4 - deckMainQtyByNumber(deck, idx, card.number, key));
+      deck.cards[key] = Math.min(qty, room);
+      if(deck.cards[key] === 0) delete deck.cards[key];
+    }
     cacheImage(card.image_url);
     added++;
   });
@@ -944,8 +985,8 @@ function getRelevantImageUrls(){
       }
     });
     getDecks(game).forEach(function(deck){
-      Object.keys(deck.cards||{}).forEach(function(num){
-        var c = (idx.byNumber[num]||[])[0];
+      Object.keys(deck.cards||{}).forEach(function(key){
+        var c = cardForDeckKey(idx, key);
         if(c && c.image_url) urls[c.image_url] = true;
       });
       if(deck.resources){
@@ -1567,24 +1608,50 @@ function renderDeckView(){
   }
 
   var listEl = document.getElementById('deck-list');
-  var entries = Object.keys(deck.cards).map(function(k){ return [k, deck.cards[k]]; });
-  document.getElementById('deck-count').textContent = entries.reduce(function(a,e){ return a+e[1]; },0);
+  var entries = deckCardEntries(game, deck);
+  document.getElementById('deck-count').textContent = entries.reduce(function(a,e){ return a+e.qty; },0);
   listEl.innerHTML = '';
   if(entries.length === 0){
     listEl.innerHTML = '<div class="empty-state">No cards added yet.</div>';
   } else {
-    entries.sort(function(a,b){ return a[0].localeCompare(b[0], undefined, {numeric:true}); });
+    entries.sort(function(a,b){ return a.num.localeCompare(b.num, undefined, {numeric:true}) || (a.key||'').localeCompare(b.key||'', undefined, {numeric:true}); });
     entries.forEach(function(e){
-      var num = e[0], qty = e[1];
-      var c = (idx.byNumber[num]||[])[0];
+      var key = e.key, num = e.num, qty = e.qty;
+      var c = e.card;
+      var variants = c ? (idx.byNumber[c.number] || []) : [];
+      var variantSelect = '';
+      if(variants.length > 1){
+        variantSelect = '<select class="deck-printing-select" data-act="printing">' + variants.map(function(v){
+          var vKey = deckCardKey(v);
+          var label = (v.rarity || 'Printing') + ' - ' + (v.set_code || '') + (v.id !== v.number ? ' - ' + v.id : '');
+          var selected = vKey === key || (key === num && c && v.id === c.id);
+          return '<option value="' + escapeAttr(vKey) + '"' + (selected ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+        }).join('') + '</select>';
+      }
       var row = document.createElement('div');
       row.className = 'deck-row';
-      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
+      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div>' + variantSelect + '</div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+      if(c && c.rarity) row.querySelector('.dsub').innerHTML = escapeHtml(num) + ' &middot; ' + escapeHtml(c.rarity);
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
       if(c) row.addEventListener('click', function(){ openCardModal(c); });
-      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, -1); };
-      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, 1); };
+      var printingSelect = row.querySelector('[data-act="printing"]');
+      if(printingSelect){
+        printingSelect.onclick = function(e){ e.stopPropagation(); };
+        printingSelect.onchange = function(e){
+          e.stopPropagation();
+          var newKey = e.target.value;
+          if(newKey === key) return;
+          deck.cards[newKey] = (deck.cards[newKey] || 0) + qty;
+          delete deck.cards[key];
+          var newCard = cardForDeckKey(idx, newKey);
+          if(newCard) cacheImage(newCard.image_url);
+          saveState();
+          renderDeckView();
+        };
+      }
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', key, -1); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', key, 1); };
       listEl.appendChild(row);
     });
   }
@@ -1712,7 +1779,7 @@ function renderDeckAddGrid(){
   var deck = ensureActiveDeck(game);
   var grid = document.getElementById('deck-add-grid');
   var colorToggle = document.getElementById('deck-color-toggle');
-  var list = idx.canonical;
+  var list = idx.cards;
   if(game === 'onepiece'){
     if(deck.leader){
       var leaderCard = (idx.byNumber[deck.leader]||[])[0];
@@ -1788,7 +1855,10 @@ function renderCollectionView(){
     var deck = decks.filter(function(d){ return d.id === deckFilterId; })[0];
     var need = {};
     if(deck){
-      Object.keys(deck.cards).forEach(function(n){ need[n] = (need[n]||0) + deck.cards[n]; });
+      Object.keys(deck.cards).forEach(function(key){
+        var num = cardNumberForDeckKey(idx, key);
+        need[num] = (need[num]||0) + deck.cards[key];
+      });
       if(game === 'gundam') Object.keys(deck.resources).forEach(function(n){ need[n] = (need[n]||0) + deck.resources[n]; });
       if(game === 'gundam' && deck.exResources) Object.keys(deck.exResources).forEach(function(n){ need[n] = (need[n]||0) + deck.exResources[n]; });
       if(game === 'gundam' && deck.exBases) Object.keys(deck.exBases).forEach(function(n){ need[n] = (need[n]||0) + deck.exBases[n]; });

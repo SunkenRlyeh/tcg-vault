@@ -175,6 +175,11 @@ button, input, select { font-family: inherit; }
 .deck-card-meta { flex: 1; min-width: 0; }
 .deck-row .dname { flex: 1; font-size: 13px; }
 .deck-row .dsub { font-size: 11px; color: var(--text-dim); }
+.deck-printing-select {
+  margin-top: 4px; width: 100%; max-width: 190px; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-elev-2); color: var(--text); font-size: 11px;
+}
 .deck-row .stepper { display: flex; align-items: center; gap: 6px; }
 .deck-row .stepper button { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); width: 22px; height: 22px; border-radius: 50%; font-size: 13px; }
 .deck-resource-section.hidden { display: none; }
