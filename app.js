@@ -11,6 +11,16 @@ var escapeAttr = escapeHtml;
 function uniqSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort(); }
 function numOrInf(v){ var n=parseInt(v,10); return isNaN(n)?999:n; }
 
+function normalizeImageUrl(url){
+  if(!url) return url;
+  // The official Gundam site now emits cache-buster URLs as "?260715=".
+  // Keep older generated data working by normalizing before rendering/caching.
+  if(url.indexOf('gundam-gcg.com/') !== -1){
+    return url.replace(/(\.webp\?\d+)$/, '$1=');
+  }
+  return url;
+}
+
 function colorToHex(color){
   if(!color) return '#4f8cff';
   var c = color.toLowerCase();
@@ -29,6 +39,7 @@ var IMAGE_CACHE = 'tcgvault-images-v1';
 var CACHE_SUPPORTED = (typeof window !== 'undefined') && ('caches' in window) &&
   (location.protocol === 'https:' || location.hostname === 'localhost');
 function cacheImage(url){
+  url = normalizeImageUrl(url);
   if(!url || !CACHE_SUPPORTED) return;
   caches.open(IMAGE_CACHE).then(function(cache){
     cache.match(url).then(function(hit){
@@ -44,6 +55,7 @@ function cacheImage(url){
   });
 }
 function uncacheImage(url){
+  url = normalizeImageUrl(url);
   if(!url || !CACHE_SUPPORTED) return;
   caches.open(IMAGE_CACHE).then(function(cache){ cache.delete(url); });
 }
@@ -383,6 +395,7 @@ function getLazyObserver(){
       if(!url) return;
       var img = new Image();
       img.alt = name || '';
+      img.referrerPolicy = 'no-referrer';
       img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
       img.onerror = function(){ /* offline, unreachable, or rate-limited - keep text fallback */ };
       img.src = url;
@@ -391,12 +404,14 @@ function getLazyObserver(){
   return _lazyObserver;
 }
 function lazyLoadImage(el, url, name){
+  url = normalizeImageUrl(url);
   if(!url) return;
   var observer = getLazyObserver();
   if(!observer){
     // Fallback for browsers without IntersectionObserver: load immediately.
     var img = new Image();
     img.alt = name || '';
+    img.referrerPolicy = 'no-referrer';
     img.onload = function(){ el.innerHTML=''; el.appendChild(img); };
     img.onerror = function(){ /* offline or unreachable - keep text fallback */ };
     img.src = url;

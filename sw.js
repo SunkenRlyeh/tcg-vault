@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tcg-vault-v6';
+const CACHE_NAME = 'tcg-vault-v7';
 const IMAGE_CACHE = 'tcgvault-images-v1';
 const ASSETS = [
   './',
@@ -38,12 +38,12 @@ self.addEventListener('fetch', (event) => {
 
   const isCardImage = IMAGE_HOSTS.some((h) => url.hostname === h || url.hostname.endsWith('.' + h));
   if (isCardImage) {
-    // Cache-first for images that were explicitly saved (owned cards / deck cards).
-    // Anything not explicitly cached just goes straight to the network and is
-    // NOT auto-stored, keeping the offline image set small and intentional.
+    // Network-first prevents a stale/rate-limited opaque image response from
+    // getting stuck forever while still falling back to explicitly cached art
+    // when the device is offline.
     event.respondWith(
       caches.open(IMAGE_CACHE).then((cache) =>
-        cache.match(event.request).then((cached) => cached || fetch(event.request))
+        fetch(event.request).catch(() => cache.match(event.request))
       )
     );
     return;
