@@ -221,6 +221,29 @@ function addCardToDeck(game, card){
   }
   saveState();
 }
+function addCardCopiesToDeck(game, card, count){
+  var deck = ensureActiveDeck(game);
+  var added = 0;
+  if(game === 'onepiece' && card.type === 'Leader'){
+    deck.leader = card.number;
+    added = 1;
+  } else if(game === 'gundam' && card.type === 'RESOURCE'){
+    deck.resources[card.number] = (deck.resources[card.number]||0) + count;
+    added = count;
+  } else {
+    var cur = deck.cards[card.number] || 0;
+    var next = Math.min(4, cur + count);
+    added = next - cur;
+    if(added > 0) deck.cards[card.number] = next;
+  }
+  if(added > 0){
+    cacheImage(card.image_url);
+    saveState();
+    toast('Added ' + added + 'x ' + card.name);
+  } else {
+    toast('Max 4 copies reached');
+  }
+}
 function deckLegality(game, deck){
   var idx = getIndex(game);
   var errs = [];
@@ -741,8 +764,9 @@ function renderDeckView(){
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
-      row.querySelector('[data-act="minus"]').onclick = function(){ changeDeckQty(game, deck, 'cards', num, -1); };
-      row.querySelector('[data-act="plus"]').onclick = function(){ changeDeckQty(game, deck, 'cards', num, 1); };
+      if(c) row.addEventListener('click', function(){ openCardModal(c); });
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, -1); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'cards', num, 1); };
       listEl.appendChild(row);
     });
   }
@@ -760,8 +784,9 @@ function renderDeckView(){
       row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
       if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
-      row.querySelector('[data-act="minus"]').onclick = function(){ changeDeckQty(game, deck, 'resources', num, -1); };
-      row.querySelector('[data-act="plus"]').onclick = function(){ changeDeckQty(game, deck, 'resources', num, 1); };
+      if(c) row.addEventListener('click', function(){ openCardModal(c); });
+      row.querySelector('[data-act="minus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, -1); };
+      row.querySelector('[data-act="plus"]').onclick = function(e){ e.stopPropagation(); changeDeckQty(game, deck, 'resources', num, 1); };
       resList.appendChild(row);
     });
   }
@@ -799,12 +824,34 @@ function renderDeckAddGrid(){
   list = list.slice(0,60);
   grid.innerHTML = '';
   list.forEach(function(c){
-    grid.appendChild(cardTile(c, function(card){
-      addCardToDeck(game, card);
-      renderDeckView();
-    }));
+    if(game === 'onepiece' && !deck.leader){
+      grid.appendChild(cardTile(c, function(card){
+        addCardToDeck(game, card);
+        renderDeckView();
+      }));
+    } else {
+      grid.appendChild(deckAddTile(c, game));
+    }
   });
   if(list.length === 0) grid.innerHTML = '<div class="empty-state">No matches.</div>';
+}
+function deckAddTile(c, game){
+  var tile = cardTile(c, openCardModal);
+  var quick = document.createElement('div');
+  quick.className = 'quick-add';
+  [1,2,3,4].forEach(function(n){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '+' + n;
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      addCardCopiesToDeck(game, c, n);
+      renderDeckView();
+    });
+    quick.appendChild(btn);
+  });
+  tile.appendChild(quick);
+  return tile;
 }
 
 // ---------- Collection / trade binder view ----------
