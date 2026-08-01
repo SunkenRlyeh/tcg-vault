@@ -280,3 +280,8 @@ button, input, select { font-family: inherit; }
 }
 .cache-status { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
 .offline-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* TCGPlayer "Buy" buttons */
+.text-btn.buy-btn { color: var(--green); border-color: var(--green); }
+.summary-stat.buy-all-stat { display: flex; align-items: center; justify-content: center; padding: 4px; }
+.buy-all-btn { width: 100%; color: var(--green); border-color: var(--green); }

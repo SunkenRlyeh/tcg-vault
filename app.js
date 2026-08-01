@@ -945,6 +945,51 @@ function renderCurve(title, buckets){
     }).join('') +
   '</div>';
 }
+// ---------- TCGPlayer "Buy" links ----------
+var TCGPLAYER_PRODUCT_LINE = {
+  onepiece: 'One Piece Card Game',
+  gundam: 'Gundam Card Game'
+};
+function tcgplayerMassEntryUrl(game, items){
+  var productLine = TCGPLAYER_PRODUCT_LINE[game] || '';
+  var lines = items.map(function(it){
+    var num = it.card.number || it.card.id || '';
+    var setCode = it.card.set_code || '';
+    return it.qty + ' ' + it.card.name + (setCode ? ' [' + setCode + ']' : '') + (num ? ' ' + num : '');
+  });
+  return 'https://www.tcgplayer.com/massentry?c=' + encodeURIComponent(lines.join('\n')) +
+    '&productline=' + encodeURIComponent(productLine);
+}
+function tcgplayerProductSearchUrl(card){
+  return tcgplayerMassEntryUrl(card.game, [{ card: card, qty: 1 }]);
+}
+function deckBuyItems(game, deck, idx){
+  var items = {};
+  function add(card, qty){
+    if(!card || !qty || card.price == null) return;
+    var key = card.number || card.id;
+    if(!items[key]) items[key] = { card: card, qty: 0 };
+    items[key].qty += qty;
+  }
+  if(game === 'onepiece' && deck.leader){
+    add((idx.byNumber[deck.leader]||[])[0], 1);
+  }
+  deckCardEntries(game, deck).forEach(function(e){ add(e.card, e.qty); });
+  if(game === 'onepiece'){
+    Object.keys(deck.dons || {}).forEach(function(num){
+      add((idx.byNumber[num]||[])[0], deck.dons[num]);
+    });
+  }
+  if(game === 'gundam'){
+    ['resources','exResources','exBases'].forEach(function(bucket){
+      Object.keys(deck[bucket] || {}).forEach(function(num){
+        add((idx.byNumber[num]||[])[0], deck[bucket][num]);
+      });
+    });
+  }
+  return Object.keys(items).map(function(k){ return items[k]; });
+}
+
 function renderDeckValueSummary(game, deck, idx){
   var container = document.getElementById('deck-value-summary');
   if(!container){
@@ -987,7 +1032,16 @@ function renderDeckValueSummary(game, deck, idx){
   }
   container.innerHTML =
     '<div class="summary-stat"><div class="val">$' + total.toFixed(2) + '</div><div class="lbl">Deck value' + (unpriced ? (' (' + unpriced + ' unpriced)') : '') + '</div></div>' +
-    '<div class="summary-stat"><div class="val">' + count + '</div><div class="lbl">Priced cards counted</div></div>';
+    '<div class="summary-stat"><div class="val">' + count + '</div><div class="lbl">Priced cards counted</div></div>' +
+    '<div class="summary-stat buy-all-stat"><button class="text-btn buy-all-btn" id="deck-buy-all-btn" type="button">Buy all on TCGPlayer</button></div>';
+  var buyAllBtn = document.getElementById('deck-buy-all-btn');
+  if(buyAllBtn){
+    buyAllBtn.onclick = function(){
+      var items = deckBuyItems(game, deck, idx);
+      if(items.length === 0){ toast('No priced cards in this deck yet'); return; }
+      window.open(tcgplayerMassEntryUrl(game, items), '_blank', 'noopener');
+    };
+  }
 }
 function renderDeckStats(game, deck){
   var el = document.getElementById('deck-stats');
@@ -1521,6 +1575,7 @@ function openCardModal(c){
       '<div><label class="small">Price ($)</label>' +
         '<input class="price-input" id="price-input" type="number" step="0.01" min="0" value="' + (price!=null?price:'') + '" placeholder="0.00"></div>' +
       '<div><label class="small">&nbsp;</label><button class="text-btn" id="add-to-deck-btn">Add to active deck</button></div>' +
+      '<div><label class="small">&nbsp;</label><button class="text-btn buy-btn" id="buy-tcgplayer-btn">Buy on TCGPlayer</button></div>' +
     '</div>' +
     (variants.length ? (
       '<h3 class="section-label">Other printings (' + variants.length + ')</h3>' +
@@ -1545,6 +1600,9 @@ function openCardModal(c){
   document.getElementById('add-to-deck-btn').onclick = function(){
     addCardToDeck(c.game, c);
     if(currentTab === 'deck') renderDeckView();
+  };
+  document.getElementById('buy-tcgplayer-btn').onclick = function(){
+    window.open(tcgplayerProductSearchUrl(c), '_blank', 'noopener');
   };
   if(variants.length){
     var listEl = document.getElementById('printing-list');
