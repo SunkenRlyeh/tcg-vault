@@ -139,12 +139,19 @@ button, input, select { font-family: inherit; }
   display: flex; align-items: center; gap: 8px; background: var(--bg-elev); border: 1px solid var(--border);
   border-radius: 10px; padding: 6px 8px;
 }
+.deck-thumb {
+  width: 36px; height: 50px; border-radius: 6px; background: var(--bg-elev-2);
+  flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--text-dim); text-align: center;
+}
+.deck-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.deck-card-meta { flex: 1; min-width: 0; }
 .deck-row .dname { flex: 1; font-size: 13px; }
 .deck-row .dsub { font-size: 11px; color: var(--text-dim); }
 .deck-row .stepper { display: flex; align-items: center; gap: 6px; }
 .deck-row .stepper button { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); width: 22px; height: 22px; border-radius: 50%; font-size: 13px; }
 .deck-resource-section.hidden { display: none; }
-.deck-actions { display: flex; gap: 8px; }
+.deck-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #deck-search { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); margin-bottom: 8px; }
 
 .collection-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }

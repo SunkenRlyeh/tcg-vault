@@ -678,8 +678,9 @@ function renderDeckView(){
       var c = (idx.byNumber[num]||[])[0];
       var row = document.createElement('div');
       row.className = 'deck-row';
-      row.innerHTML = '<div><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
+      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
       row.querySelector('[data-act="minus"]').onclick = function(){ changeDeckQty(game, deck, 'cards', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(){ changeDeckQty(game, deck, 'cards', num, 1); };
       listEl.appendChild(row);
@@ -696,8 +697,9 @@ function renderDeckView(){
       var c = (idx.byNumber[num]||[])[0];
       var row = document.createElement('div');
       row.className = 'deck-row';
-      row.innerHTML = '<div><div class="dname">' + escapeHtml(c?c.name:num) + '</div></div>' +
+      row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + '</div></div>' +
         '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+      if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c.image_url, c.name);
       row.querySelector('[data-act="minus"]').onclick = function(){ changeDeckQty(game, deck, 'resources', num, -1); };
       row.querySelector('[data-act="plus"]').onclick = function(){ changeDeckQty(game, deck, 'resources', num, 1); };
       resList.appendChild(row);
@@ -912,6 +914,19 @@ document.getElementById('deck-select').addEventListener('change', function(e){
 });
 document.getElementById('deck-export').addEventListener('click', exportDeck);
 document.getElementById('deck-import').addEventListener('click', openImportModal);
+document.getElementById('deck-clear').addEventListener('click', function(){
+  var game = currentGame;
+  var deck = getActiveDeck(game);
+  if(!deck) return;
+  var msg = game === 'onepiece'
+    ? 'Clear all cards from "' + deck.name + '"? Your leader will stay selected.'
+    : 'Clear all cards and resources from "' + deck.name + '"?';
+  if(!confirm(msg)) return;
+  deck.cards = {};
+  if(game === 'gundam') deck.resources = {};
+  saveState();
+  renderDeckView();
+});
 document.getElementById('collection-search').addEventListener('input', renderCollectionView);
 document.getElementById('collection-deck-filter').addEventListener('change', renderCollectionView);
 document.getElementById('cache-all-btn').addEventListener('click', cacheAllRelevantImages);
