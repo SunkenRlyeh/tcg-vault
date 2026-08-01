@@ -32,7 +32,14 @@ function cacheImage(url){
   if(!url || !CACHE_SUPPORTED) return;
   caches.open(IMAGE_CACHE).then(function(cache){
     cache.match(url).then(function(hit){
-      if(!hit) cache.add(url).catch(function(){ /* offline or blocked - ignore */ });
+      if(hit) return;
+      // Card art hosts (optcgapi.com / gundam-gcg.com) don't send CORS headers,
+      // so a normal cors-mode fetch/cache.add() is rejected outright. Fetch in
+      // no-cors mode (same as an <img> tag) to get an opaque response we can
+      // still store and later serve from Cache Storage.
+      fetch(url, { mode: 'no-cors' }).then(function(resp){
+        cache.put(url, resp);
+      }).catch(function(){ /* offline or blocked - ignore */ });
     });
   });
 }
