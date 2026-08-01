@@ -1,9 +1,9 @@
 // Pulls TCGPlayer market prices (via the free tcgcsv.com mirror, no API key
 // required) for both One Piece Card Game (TCGPlayer categoryId 68) and
 // Gundam Card Game (TCGPlayer categoryId 86), matches them against our own
-// card files by printed card number (and rarity, to disambiguate alt-art
-// printings), and writes the result back into the "price" field of
-// onepiece_cards.js and gundam_cards.js.
+// card files by printed card number, TCGPlayer set/group, and rarity (to
+// disambiguate alt-art and reprint-across-sets printings), and writes the
+// result back into the "price" field of onepiece_cards.js and gundam_cards.js.
 //
 // Runs on GitHub Actions (see .github/workflows/update-tcg-prices.yml) on a
 // daily schedule, so prices stay current without any manual work.
@@ -50,9 +50,13 @@ function normRarity(s) {
 }
 
 // Fetches every product + price for one TCGPlayer category and returns a
-// map of cardNumber -> [{ productId, name, rarity, market }] (may have more
-// than one entry per number when a card has alt-art / parallel printings
-// that TCGPlayer lists as separate products).
+// map of cardNumber -> [{ productId, name, rarity, market, setCode }] (may
+// have more than one entry per number when a card has alt-art / parallel
+// printings, OR when the same card number gets reprinted as a promo in a
+// later box - which TCGPlayer lists as separate products in separate groups).
+// setCode is the TCGPlayer group's own abbreviation (e.g. "ST01", "GD05"),
+// which lines up with our card data's set_code field and is what lets us
+// tell those reprints-of-the-same-number apart.
 async function buildCategoryPriceMap(categoryId, label) {
   const map = {};
   const groupsResp = await fetchJson('https://tcgcsv.com/tcgplayer/' + categoryId + '/groups');
@@ -87,6 +91,7 @@ async function buildCategoryPriceMap(categoryId, label) {
         name: prod.name,
         rarity: rarityField ? rarityField.value : '',
         market: chosen ? chosen.marketPrice : null,
+        setCode: g.abbreviation || '',
       });
     }
     await sleep(250); // be polite to tcgcsv.com per their usage guidelines
@@ -94,13 +99,30 @@ async function buildCategoryPriceMap(categoryId, label) {
   return map;
 }
 
+function normSet(s) { return String(s || '').trim().toLowerCase(); }
+
 // Applies a TCGPlayer price map onto our own card array (mutates in place).
-// Returns { matched, updated, total } counters for reporting.
+// Returns { matched, updated, total, fuzzy } counters for reporting.
+//
+// Card numbers alone aren't a safe key: the same printed number can show up
+// as a full-price original AND as a promo reprint bundled into a totally
+// different, later box (e.g. Amuro Ray ST01-010 also appears as a promo in
+// the Freedom Ascension deck-build box). TCGPlayer lists those as separate
+// products in separate groups, worth very different amounts. So we match in
+// order of confidence:
+//   1. same card number + same set_code (TCGPlayer group abbreviation) +
+//      same rarity - the exact match.
+//   2. same number + same set_code, ignoring rarity - covers minor rarity
+//      label mismatches between our data and TCGPlayer's.
+//   3. same number only, matched by rarity, across any set - last-resort
+//      fallback for when our set_code doesn't correspond to a TCGPlayer
+//      group abbreviation at all. Flagged as "fuzzy" since it's the one
+//      case that can still cross sets and grab the wrong printing's price.
 function applyPrices(cards, priceMap) {
   const byNumber = {};
   for (const c of cards) (byNumber[c.number] = byNumber[c.number] || []).push(c);
 
-  let matched = 0, updated = 0;
+  let matched = 0, updated = 0, fuzzy = 0;
   for (const number of Object.keys(byNumber)) {
     const ours = byNumber[number]; // our printings for this card number, in file order
     const theirs = (priceMap[number] || []).filter((e) => e.market != null);
@@ -108,22 +130,31 @@ function applyPrices(cards, priceMap) {
 
     const claimed = new Set();
     for (const card of ours) {
-      // Prefer a rarity match; otherwise fall back to the first still-
-      // unclaimed TCGPlayer entry (usually correct when there's only one
-      // printing on TCGPlayer's side, or when order lines up).
-      let pick = theirs.find((e, i) => !claimed.has(i) && normRarity(e.rarity) === normRarity(card.rarity));
+      const cardSet = normSet(card.set_code);
+      let pick = null;
+      let isFuzzy = false;
+
+      pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet
+        && normRarity(e.rarity) === normRarity(card.rarity));
+
       if (!pick) {
-        const idx = theirs.findIndex((e, i) => !claimed.has(i));
-        pick = idx !== -1 ? theirs[idx] : null;
+        pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet);
       }
+
+      if (!pick) {
+        pick = theirs.find((e, i) => !claimed.has(i) && normRarity(e.rarity) === normRarity(card.rarity));
+        if (pick) isFuzzy = true;
+      }
+
       if (pick) {
         claimed.add(theirs.indexOf(pick));
         matched++;
+        if (isFuzzy) fuzzy++;
         if (card.price !== pick.market) { card.price = pick.market; updated++; }
       }
     }
   }
-  return { matched, updated, total: cards.length };
+  return { matched, updated, total: cards.length, fuzzy };
 }
 
 function bumpCacheVersion() {
@@ -150,7 +181,7 @@ async function main() {
   eval(src);
   let cards = global.window.ONEPIECE_CARDS;
   const opStats = applyPrices(cards, opMap);
-  console.log('One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated);
+  console.log('One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', fuzzy ' + opStats.fuzzy);
   if (opStats.updated > 0) {
     fs.writeFileSync('onepiece_cards.js', 'window.ONEPIECE_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
@@ -161,7 +192,7 @@ async function main() {
   eval(src);
   cards = global.window.GUNDAM_CARDS;
   const gdStats = applyPrices(cards, gdMap);
-  console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated);
+  console.log('Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', fuzzy ' + gdStats.fuzzy);
   if (gdStats.updated > 0) {
     fs.writeFileSync('gundam_cards.js', 'window.GUNDAM_CARDS = ' + JSON.stringify(cards) + ';\n');
     anyChanged = true;
@@ -180,8 +211,8 @@ async function main() {
   // schedule go dormant. Writing this file guarantees there's always
   // something to commit, so the cron trigger never goes stale.
   const log = 'Last price sync: ' + new Date().toISOString() + '\n'
-    + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + '\n'
-    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + '\n';
+    + 'One Piece: matched ' + opStats.matched + '/' + opStats.total + ', changed ' + opStats.updated + ', fuzzy ' + opStats.fuzzy + '\n'
+    + 'Gundam: matched ' + gdStats.matched + '/' + gdStats.total + ', changed ' + gdStats.updated + ', fuzzy ' + gdStats.fuzzy + '\n';
   fs.writeFileSync('PRICE_SYNC_LOG.txt', log);
 }
 
