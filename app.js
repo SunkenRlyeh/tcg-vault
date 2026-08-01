@@ -406,7 +406,8 @@ function officialGundamImageCandidates(id){
   });
   var cardListUrls = cardListId ? ['https://static.gundamcardlist.com/images/cards/' + cardListId + '.jpg'] : [];
   var specialUrls = GUNDAM_SPECIAL_IMAGE_URLS[id] || [];
-  var cardGameSearcherUrls = ['https://cardgamesearcher.com/assets/img/cards/gcg/en/' + id + '.webp'];
+  var cardGameSearcherId = id.replace(/_P(\d+)$/, '_p$1');
+  var cardGameSearcherUrls = ['https://cardgamesearcher.com/assets/img/cards/gcg/en/' + cardGameSearcherId + '.webp'];
   var officialUrls = /^EXB/i.test(id) || /^EXRP-/i.test(id) ? [] : [
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715',
