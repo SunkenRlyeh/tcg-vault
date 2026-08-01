@@ -107,7 +107,42 @@
       <h3>Add cards</h3>
       <div class="deck-add-tools">
         <input id="deck-search" type="search" placeholder="Search cards to add...">
+        <button id="deck-filter-toggle" class="text-btn">Filters</button>
         <button id="deck-color-toggle" class="text-btn hidden">Any color</button>
+      </div>
+      <div id="deck-filter-panel" class="filter-panel hidden">
+        <div class="filter-row">
+          <label>Set
+            <select id="deck-filter-set"><option value="">All sets</option></select>
+          </label>
+          <label>Color
+            <select id="deck-filter-color"><option value="">All colors</option></select>
+          </label>
+        </div>
+        <div class="filter-row">
+          <label>Type
+            <select id="deck-filter-type"><option value="">All types</option></select>
+          </label>
+          <label>Rarity
+            <select id="deck-filter-rarity"><option value="">All rarities</option></select>
+          </label>
+        </div>
+        <div class="filter-row">
+          <label>Sort
+            <select id="deck-filter-sort">
+              <option value="set">Set order</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="cost">Cost (low-high)</option>
+            </select>
+          </label>
+          <label>Name match
+            <select id="deck-filter-name-mode">
+              <option value="contains">Contains</option>
+              <option value="exact">Exact name</option>
+            </select>
+          </label>
+          <button id="deck-filter-clear" class="text-btn">Clear filters</button>
+        </div>
       </div>
       <div id="deck-add-grid" class="card-grid small"></div>
     </div>

@@ -337,6 +337,7 @@ var currentGame = 'gundam';
 var currentTab = 'browse';
 var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var deckSearchTerm = '';
+var deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var onePieceAllowAnyColor = false;
 
 // ---------- Collection helpers (keyed by exact printing id - each art is distinct) ----------
@@ -1237,6 +1238,10 @@ function renderFilterOptions(){
   fillSelect('filter-color', idx.colors.map(function(c){ return {value:c, label:c}; }));
   fillSelect('filter-type', idx.types.map(function(t){ return {value:t, label:t}; }));
   fillSelect('filter-rarity', idx.rarities.map(function(r){ return {value:r, label:r}; }));
+  fillSelect('deck-filter-set', idx.sets.map(function(s){ return {value:s, label: s + (idx.setNames[s] ? ' - ' + idx.setNames[s] : '')}; }));
+  fillSelect('deck-filter-color', idx.colors.map(function(c){ return {value:c, label:c}; }));
+  fillSelect('deck-filter-type', idx.types.map(function(t){ return {value:t, label:t}; }));
+  fillSelect('deck-filter-rarity', idx.rarities.map(function(r){ return {value:r, label:r}; }));
 }
 function matchesFilters(c){
   if(filters.set && c.set_code !== filters.set) return false;
@@ -1258,6 +1263,33 @@ function sortCards(list){
   var arr = list.slice();
   if(filters.sort === 'name') arr.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
   else if(filters.sort === 'cost') arr.sort(function(a,b){ return numOrInf(a.cost) - numOrInf(b.cost); });
+  else arr.sort(function(a,b){
+    var s = (a.set_code||'').localeCompare(b.set_code||'');
+    if(s !== 0) return s;
+    return (a.number||'').localeCompare(b.number||'', undefined, {numeric:true});
+  });
+  return arr;
+}
+function matchesDeckFilters(c){
+  if(deckFilters.set && c.set_code !== deckFilters.set) return false;
+  if(deckFilters.color && (c.color||'').indexOf(deckFilters.color) === -1) return false;
+  if(deckFilters.type && c.type !== deckFilters.type) return false;
+  if(deckFilters.rarity && c.rarity !== deckFilters.rarity) return false;
+  if(deckSearchTerm){
+    var s = deckSearchTerm.toLowerCase().trim();
+    if(deckFilters.nameMode === 'exact'){
+      if((c.name||'').toLowerCase() !== s) return false;
+    } else {
+      var hay = ((c.name||'')+' '+(c.number||'')+' '+(c.text||'')).toLowerCase();
+      if(hay.indexOf(s) === -1) return false;
+    }
+  }
+  return true;
+}
+function sortDeckCards(list){
+  var arr = list.slice();
+  if(deckFilters.sort === 'name') arr.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  else if(deckFilters.sort === 'cost') arr.sort(function(a,b){ return numOrInf(a.cost) - numOrInf(b.cost); });
   else arr.sort(function(a,b){
     var s = (a.set_code||'').localeCompare(b.set_code||'');
     if(s !== 0) return s;
@@ -1490,10 +1522,7 @@ function renderDeckAddGrid(){
   } else {
     colorToggle.classList.add('hidden');
   }
-  if(deckSearchTerm){
-    var s = deckSearchTerm.toLowerCase();
-    list = list.filter(function(c){ return ((c.name||'')+' '+(c.number||'')).toLowerCase().indexOf(s) !== -1; });
-  }
+  list = sortDeckCards(list.filter(matchesDeckFilters));
   grid.innerHTML = '';
   var frag = document.createDocumentFragment();
   list.forEach(function(c){
@@ -1655,8 +1684,13 @@ document.querySelectorAll('.game-btn').forEach(function(btn){
     btn.classList.add('active');
     currentGame = btn.dataset.game;
     filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
+    deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
+    deckSearchTerm = '';
     document.getElementById('search-input').value = '';
+    document.getElementById('deck-search').value = '';
     document.getElementById('filter-name-mode').value = 'contains';
+    document.getElementById('deck-filter-name-mode').value = 'contains';
+    document.getElementById('deck-filter-sort').value = 'set';
     renderFilterOptions();
     renderCurrentView();
   });
@@ -1688,6 +1722,24 @@ document.getElementById('filter-clear').addEventListener('click', function(){
 });
 document.getElementById('deck-search').addEventListener('input', function(e){
   deckSearchTerm = e.target.value;
+  renderDeckAddGrid();
+});
+document.getElementById('deck-filter-toggle').addEventListener('click', function(){
+  document.getElementById('deck-filter-panel').classList.toggle('hidden');
+});
+['deck-filter-set','deck-filter-color','deck-filter-type','deck-filter-rarity','deck-filter-sort','deck-filter-name-mode'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', function(e){
+    var key = id === 'deck-filter-name-mode' ? 'nameMode' : id.replace('deck-filter-','');
+    deckFilters[key] = e.target.value;
+    renderDeckAddGrid();
+  });
+});
+document.getElementById('deck-filter-clear').addEventListener('click', function(){
+  var nameMode = deckFilters.nameMode;
+  deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:nameMode };
+  ['deck-filter-set','deck-filter-color','deck-filter-type','deck-filter-rarity'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('deck-filter-sort').value = 'set';
+  document.getElementById('deck-filter-name-mode').value = nameMode;
   renderDeckAddGrid();
 });
 document.getElementById('deck-color-toggle').addEventListener('click', function(){

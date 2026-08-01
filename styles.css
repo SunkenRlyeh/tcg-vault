@@ -181,6 +181,7 @@ button, input, select { font-family: inherit; }
 .deck-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .deck-add-tools { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 #deck-search { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
+#deck-filter-toggle { flex-shrink: 0; white-space: nowrap; }
 #deck-color-toggle { flex-shrink: 0; white-space: nowrap; }
 
 .collection-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
