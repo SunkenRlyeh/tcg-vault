@@ -68,6 +68,8 @@ button, input, select { font-family: inherit; }
   border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 600;
 }
 .text-btn.danger { color: var(--accent-2); }
+.text-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.hidden { display: none !important; }
 .result-count { font-size: 12px; color: var(--text-dim); margin: 6px 2px; }
 
 .card-grid {
@@ -166,7 +168,9 @@ button, input, select { font-family: inherit; }
 .deck-row .stepper button { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); width: 22px; height: 22px; border-radius: 50%; font-size: 13px; }
 .deck-resource-section.hidden { display: none; }
 .deck-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-#deck-search { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); margin-bottom: 8px; }
+.deck-add-tools { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+#deck-search { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
+#deck-color-toggle { flex-shrink: 0; white-space: nowrap; }
 
 .collection-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .collection-toolbar select { padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); flex: 1; min-width: 120px; }

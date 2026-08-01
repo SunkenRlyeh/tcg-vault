@@ -126,6 +126,7 @@ var currentGame = 'onepiece';
 var currentTab = 'browse';
 var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set' };
 var deckSearchTerm = '';
+var onePieceAllowAnyColor = false;
 
 // ---------- Collection helpers (keyed by exact printing id - each art is distinct) ----------
 function collectionQty(game, id){
@@ -251,6 +252,14 @@ function deckLegality(game, deck){
     if(over2) errs.push(over2 + ' card(s) exceed the 4-copy limit');
   }
   return errs;
+}
+function cardColors(card){
+  return ((card && card.color)||'').split(/[\s,\/]+/).filter(Boolean);
+}
+function sharesAnyColor(card, colors){
+  if(!colors || colors.length === 0) return true;
+  var cc = cardColors(card);
+  return cc.some(function(col){ return colors.indexOf(col) >= 0; });
 }
 function deckCardEntries(game, deck){
   var idx = getIndex(game);
@@ -764,9 +773,24 @@ function renderDeckAddGrid(){
   var idx = getIndex(game);
   var deck = ensureActiveDeck(game);
   var grid = document.getElementById('deck-add-grid');
+  var colorToggle = document.getElementById('deck-color-toggle');
   var list = idx.canonical;
   if(game === 'onepiece'){
-    list = deck.leader ? list.filter(function(c){ return c.type !== 'Leader'; }) : list.filter(function(c){ return c.type === 'Leader'; });
+    if(deck.leader){
+      var leaderCard = (idx.byNumber[deck.leader]||[])[0];
+      var leaderColors = cardColors(leaderCard);
+      colorToggle.classList.remove('hidden');
+      colorToggle.textContent = onePieceAllowAnyColor ? 'Any color: On' : 'Leader colors only';
+      colorToggle.classList.toggle('active', onePieceAllowAnyColor);
+      list = list.filter(function(c){
+        return c.type !== 'Leader' && (onePieceAllowAnyColor || sharesAnyColor(c, leaderColors));
+      });
+    } else {
+      colorToggle.classList.add('hidden');
+      list = list.filter(function(c){ return c.type === 'Leader'; });
+    }
+  } else {
+    colorToggle.classList.add('hidden');
   }
   if(deckSearchTerm){
     var s = deckSearchTerm.toLowerCase();
@@ -934,6 +958,10 @@ document.getElementById('filter-clear').addEventListener('click', function(){
 });
 document.getElementById('deck-search').addEventListener('input', function(e){
   deckSearchTerm = e.target.value;
+  renderDeckAddGrid();
+});
+document.getElementById('deck-color-toggle').addEventListener('click', function(){
+  onePieceAllowAnyColor = !onePieceAllowAnyColor;
   renderDeckAddGrid();
 });
 document.getElementById('deck-new').addEventListener('click', function(){
