@@ -210,7 +210,7 @@ function mergeCards(game, incoming){
 }
 function gundamExResourceHasKnownFrontArt(id){
   id = String(id || '').toUpperCase();
-  return /^EXR-001$/.test(id) || /^EXR-00[4-9]$/.test(id) || /^EXR-01[01]$/.test(id) || /^EXRP-00[12]$/.test(id);
+  return !!GUNDAM_CARDLIST_IMAGE_IDS[id] || /^EXRP-00[12]$/.test(id);
 }
 function sanitizeGundamCard(card){
   var copy = card;
@@ -375,6 +375,7 @@ function hydrateRemoteCards(){
   });
 }
 function officialGundamImageCandidates(id){
+  var cardListId = GUNDAM_CARDLIST_IMAGE_IDS[String(id || '').toUpperCase()];
   var scrydexIds = [];
   if(/^EXRP-/i.test(id)){
     // Scrydex currently has real front images for EXRP-001/002 only. Other
@@ -396,15 +397,42 @@ function officialGundamImageCandidates(id){
     scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/large');
     scrydexUrls.push('https://images.scrydex.com/gundam/' + scrydexId + '/medium');
   });
+  var cardListUrls = cardListId ? ['https://static.gundamcardlist.com/images/cards/' + cardListId + '.jpg'] : [];
   return [
     './gundam-images/' + id + '.webp',
-  ].concat(scrydexUrls, [
+  ].concat(cardListUrls, scrydexUrls, [
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/en/images/cards/card/' + id + '.webp?260715',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715=',
     'https://www.gundam-gcg.com/jp/images/cards/card/' + id + '.webp?260715'
   ]);
 }
+var GUNDAM_CARDLIST_IMAGE_IDS = {
+  'EXR-001':'616679',
+  'EXR-002':'684025',
+  'EXR-004':'707586',
+  'EXR-005':'707587',
+  'EXR-006':'707588',
+  'EXR-007':'707589',
+  'EXR-008':'707590',
+  'EXR-009':'707591',
+  'EXR-010':'707585',
+  'EXR-011':'707584',
+  'EXRP-001':'634344',
+  'EXRP-002':'641570',
+  'EXRP-003':'653363',
+  'EXRP-004':'680936',
+  'EXRP-005':'680937',
+  'EXRP-006':'680938',
+  'EXRP-007':'680939',
+  'EXRP-008':'680940',
+  'EXRP-009':'680941',
+  'EXRP-010':'680942',
+  'EXRP-011':'680943',
+  'EXRP-012':'680944',
+  'EXRP-013':'680945',
+  'EXRP-014':'681981'
+};
 function gundamStarterSupplement(id, number, setCode, setName, rarity, name, color, cost, level, ap, hp, zone, traits, link, text){
   var urls = officialGundamImageCandidates(id);
   if(id !== number) urls = urls.concat(officialGundamImageCandidates(number));
