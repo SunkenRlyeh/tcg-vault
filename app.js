@@ -10,6 +10,9 @@ function escapeHtml(s){
 var escapeAttr = escapeHtml;
 function uniqSorted(arr){ return Array.from(new Set(arr.filter(Boolean))).sort(); }
 function numOrInf(v){ var n=parseInt(v,10); return isNaN(n)?999:n; }
+function searchText(v){
+  return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
 // OAuth Web Client IDs are public by design; do not put API keys, client
 // secrets, or tokens in this app. A locally saved ID wins over google-config.js.
@@ -1454,11 +1457,11 @@ function matchesFilters(c){
   if(filters.type && c.type !== filters.type) return false;
   if(filters.rarity && c.rarity !== filters.rarity) return false;
   if(filters.search){
-    var s = filters.search.toLowerCase().trim();
+    var s = searchText(filters.search).trim();
     if(filters.nameMode === 'exact'){
-      if((c.name||'').toLowerCase() !== s) return false;
+      if(searchText(c.name) !== s) return false;
     } else {
-      var hay = ((c.name||'') + ' ' + (c.text||'') + ' ' + (c.number||'')).toLowerCase();
+      var hay = searchText((c.name||'') + ' ' + (c.text||'') + ' ' + (c.number||''));
       if(hay.indexOf(s) === -1) return false;
     }
   }
@@ -1481,11 +1484,11 @@ function matchesDeckFilters(c){
   if(deckFilters.type && c.type !== deckFilters.type) return false;
   if(deckFilters.rarity && c.rarity !== deckFilters.rarity) return false;
   if(deckSearchTerm){
-    var s = deckSearchTerm.toLowerCase().trim();
+    var s = searchText(deckSearchTerm).trim();
     if(deckFilters.nameMode === 'exact'){
-      if((c.name||'').toLowerCase() !== s) return false;
+      if(searchText(c.name) !== s) return false;
     } else {
-      var hay = ((c.name||'')+' '+(c.number||'')+' '+(c.text||'')).toLowerCase();
+      var hay = searchText((c.name||'')+' '+(c.number||'')+' '+(c.text||''));
       if(hay.indexOf(s) === -1) return false;
     }
   }
@@ -1767,7 +1770,7 @@ function deckAddTile(c, game){
 function renderCollectionView(){
   var game = currentGame;
   var idx = getIndex(game);
-  var search = (document.getElementById('collection-search').value||'').toLowerCase();
+  var search = searchText(document.getElementById('collection-search').value || '');
   var deckSel = document.getElementById('collection-deck-filter');
   var decks = getDecks(game);
   var prevVal = deckSel.value;
@@ -1799,7 +1802,7 @@ function renderCollectionView(){
       var needQty = need[num];
       return { card:c, num:num, owned:owned, needQty:needQty, missing: Math.max(0, needQty-owned) };
     });
-    if(search) rows = rows.filter(function(r){ return ((r.card&&r.card.name)||'').toLowerCase().indexOf(search) !== -1; });
+    if(search) rows = rows.filter(function(r){ return searchText((r.card&&r.card.name)||'').indexOf(search) !== -1; });
     rows.sort(function(a,b){ return ((a.card&&a.card.name)||'').localeCompare((b.card&&b.card.name)||''); });
 
     renderCollectionSummary(game, idx);
@@ -1821,7 +1824,7 @@ function renderCollectionView(){
   } else {
     // Trade binder: every distinct printing owned, shown separately (alt arts included).
     var binderRows = idx.cards.filter(function(c){ return collectionQty(game, c.id) > 0; });
-    if(search) binderRows = binderRows.filter(function(c){ return (c.name||'').toLowerCase().indexOf(search) !== -1; });
+    if(search) binderRows = binderRows.filter(function(c){ return searchText(c.name||'').indexOf(search) !== -1; });
     binderRows.sort(function(a,b){
       var n = (a.name||'').localeCompare(b.name||'');
       if(n !== 0) return n;
