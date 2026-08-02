@@ -1810,7 +1810,7 @@ function renderDeckView(){
       var variants = c ? (idx.byNumber[c.number] || []) : [];
       var addPrintingControl = '';
       if(variants.length > 1){
-        addPrintingControl = '<div class="deck-add-printing" style="display:flex;gap:4px;align-items:center;margin-top:4px;">' +
+        addPrintingControl = '<div class="deck-add-printing">' +
           '<select class="deck-add-printing-select" data-act="add-printing">' + variants.map(function(v){
             var vKey2 = deckCardKey(v);
             var label2 = (v.rarity || 'Printing') + ' - ' + (v.set_code || '') + (v.id !== v.number ? ' - ' + v.id : '');
