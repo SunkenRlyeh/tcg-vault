@@ -163,7 +163,7 @@ button, input, select { font-family: inherit; }
 .deck-list-panel h3, .deck-add-panel h3 { font-size: 14px; margin: 6px 0; color: var(--text-dim); }
 .deck-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .deck-row {
-  display: flex; align-items: center; gap: 8px; background: var(--bg-elev); border: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 8px; background: var(--bg-elev); border: 1px solid var(--border);
   border-radius: 10px; padding: 6px 8px; cursor: pointer;
 }
 .deck-thumb {
@@ -180,7 +180,17 @@ button, input, select { font-family: inherit; }
   border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg-elev-2); color: var(--text); font-size: 11px;
 }
-.deck-row .stepper { display: flex; align-items: center; gap: 6px; }
+/* Select + button stack vertically instead of sitting side by side, so the
+   button never gets squeezed into a narrow multi-line column that can run
+   into the qty stepper on narrow phone screens. */
+.deck-add-printing { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: stretch; }
+.deck-add-printing-select {
+  width: 100%; max-width: 190px; padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-elev-2); color: var(--text); font-size: 11px;
+}
+.deck-add-printing .text-btn { width: 100%; max-width: 190px; white-space: nowrap; text-align: center; padding: 6px 10px; }
+.deck-row .stepper { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 2px; }
 .deck-row .stepper button { background: var(--bg-elev-2); color: var(--text); border: 1px solid var(--border); width: 22px; height: 22px; border-radius: 50%; font-size: 13px; }
 .deck-resource-section.hidden { display: none; }
 .deck-actions { display: flex; gap: 8px; flex-wrap: wrap; }
