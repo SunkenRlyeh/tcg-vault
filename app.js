@@ -108,12 +108,13 @@ state.sync.updatedAt = state.sync.updatedAt || new Date().toISOString();
 state.sync.lastSyncAt = state.sync.lastSyncAt || null;
 state.decks.onepiece = state.decks.onepiece || [];
 state.decks.gundam = state.decks.gundam || [];
-state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
+state.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; deck.missing = deck.missing || {}; });
 state.decks.gundam.forEach(function(deck){
   deck.resources = deck.resources || {};
   deck.exResources = deck.exResources || {};
   deck.exBases = deck.exBases || {};
   deck.tokens = deck.tokens || {};
+  deck.missing = deck.missing || {};
   deck.allowExtraColors = !!deck.allowExtraColors;
 });
 
@@ -130,12 +131,13 @@ function normalizeLoadedState(next){
   next.sync.auto = !!next.sync.auto;
   next.sync.updatedAt = next.sync.updatedAt || new Date().toISOString();
   next.sync.lastSyncAt = next.sync.lastSyncAt || null;
-  next.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; });
+  next.decks.onepiece.forEach(function(deck){ deck.dons = deck.dons || {}; deck.tokens = deck.tokens || {}; deck.missing = deck.missing || {}; });
   next.decks.gundam.forEach(function(deck){
     deck.resources = deck.resources || {};
     deck.exResources = deck.exResources || {};
     deck.exBases = deck.exBases || {};
     deck.tokens = deck.tokens || {};
+    deck.missing = deck.missing || {};
     deck.allowExtraColors = !!deck.allowExtraColors;
   });
   return next;
@@ -605,6 +607,10 @@ var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nam
 var deckSearchTerm = '';
 var deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var onePieceAllowAnyColor = false;
+// 'build' = normal deck-construction view; 'missing' = the separate "cards I
+// still need to buy" list (deck.missing), which is manually curated and never
+// reads from or writes to state.collection (the user's trade/sell binder).
+var deckViewMode = 'build';
 
 // ---------- Collection helpers (keyed by exact printing id - each art is distinct) ----------
 function collectionQty(game, id){
@@ -663,8 +669,8 @@ function getActiveDeck(game){
 function createDeck(game, name){
   var id = 'd' + Date.now() + Math.floor(Math.random()*1000);
   var deck = game === 'onepiece'
-    ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{}, tokens:{} }
-    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, exResources:{}, exBases:{}, tokens:{}, allowExtraColors:false };
+    ? { id:id, name: name || 'New Deck', leader:null, cards:{}, dons:{}, tokens:{}, missing:{} }
+    : { id:id, name: name || 'New Deck', cards:{}, resources:{}, exResources:{}, exBases:{}, tokens:{}, missing:{}, allowExtraColors:false };
   state.decks[game].push(deck);
   state.activeDeck[game] = id;
   saveState();
@@ -682,6 +688,7 @@ function ensureActiveDeck(game){
     deck.allowExtraColors = !!deck.allowExtraColors;
   }
   deck.tokens = deck.tokens || {};
+  deck.missing = deck.missing || {};
   return deck;
 }
 function bucketTotal(bucket){
@@ -736,10 +743,25 @@ function changeDeckQty(game, deck, bucket, num, delta){
   if(next === 0) delete deck[bucket][num]; else deck[bucket][num] = next;
   saveState();
   if(next > cur){
-    var c = bucket === 'cards' ? cardForDeckKey(idx, num) : (idx.byNumber[num]||[])[0];
+    var c = (bucket === 'cards' || bucket === 'missing') ? cardForDeckKey(idx, num) : (idx.byNumber[num]||[])[0];
     if(c) cacheImage(c.image_url);
   }
   renderDeckView();
+}
+function addMissingCopies(game, card, count){
+  var deck = ensureActiveDeck(game);
+  var key = deckCardKey(card);
+  var cur = deck.missing[key] || 0;
+  var next = Math.max(0, cur + count);
+  var changed = next - cur;
+  if(next === 0) delete deck.missing[key]; else deck.missing[key] = next;
+  if(changed !== 0){
+    if(changed > 0) cacheImage(card.image_url);
+    saveState();
+    toast((changed > 0 ? 'Added ' : 'Removed ') + Math.abs(changed) + 'x ' + card.name + ' to missing list');
+  } else {
+    toast('No copies to remove');
+  }
 }
 function addCardToDeck(game, card){
   var deck = ensureActiveDeck(game);
@@ -1764,6 +1786,16 @@ function renderDeckView(){
   select.value = deck.id;
 
   var idx = getIndex(game);
+
+  document.querySelectorAll('.deck-mode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === deckViewMode); });
+  var buildMeta = document.getElementById('deck-build-meta');
+  var buildPanel = document.getElementById('deck-build-panel');
+  var missingPanel = document.getElementById('deck-missing-panel');
+  if(buildMeta) buildMeta.classList.toggle('hidden', deckViewMode === 'missing');
+  if(buildPanel) buildPanel.classList.toggle('hidden', deckViewMode === 'missing');
+  if(missingPanel) missingPanel.classList.toggle('hidden', deckViewMode !== 'missing');
+  renderMissingList(game, deck, idx);
+
   var errs = deckLegality(game, deck);
   var legEl = document.getElementById('deck-legality');
   renderLegalityPanel(game, deck, errs, legEl, idx);
@@ -1962,6 +1994,41 @@ function renderDeckSpecialBucket(game, deck, idx, bucket, listId, countId, empty
     listEl.appendChild(row);
   });
 }
+// The Missing list is a separate, manually-curated per-deck "still need to
+// buy" list (deck.missing). It is intentionally independent of deck.cards and
+// of state.collection (the trade/sell binder) - per user request, Collection
+// must never be read from or written to by this feature.
+function renderMissingList(game, deck, idx){
+  var listEl = document.getElementById('missing-list');
+  if(!listEl) return;
+  var entries = Object.keys(deck.missing || {}).map(function(key){
+    return {
+      key: key,
+      num: cardNumberForDeckKey(idx, key),
+      qty: deck.missing[key],
+      card: cardForDeckKey(idx, key)
+    };
+  }).filter(function(e){ return e.qty > 0; });
+  document.getElementById('missing-count').textContent = entries.reduce(function(a,e){ return a+e.qty; },0);
+  listEl.innerHTML = '';
+  if(entries.length === 0){
+    listEl.innerHTML = '<div class="empty-state">No missing cards yet. Search on the right and tap a quick-add button to build your buy list.</div>';
+    return;
+  }
+  entries.sort(function(a,b){ return a.num.localeCompare(b.num, undefined, {numeric:true}) || (a.key||'').localeCompare(b.key||'', undefined, {numeric:true}); });
+  entries.forEach(function(e){
+    var key = e.key, num = e.num, qty = e.qty, c = e.card;
+    var row = document.createElement('div');
+    row.className = 'deck-row';
+    row.innerHTML = '<div class="deck-thumb"></div><div class="deck-card-meta"><div class="dname">' + escapeHtml(c?c.name:num) + '</div><div class="dsub">' + escapeHtml(num) + (c && c.rarity ? ' · ' + escapeHtml(c.rarity) : '') + '</div></div>' +
+      '<div class="stepper"><button data-act="minus">-</button><span>' + qty + '</span><button data-act="plus">+</button></div>';
+    if(c) lazyLoadImage(row.querySelector('.deck-thumb'), c, c.name);
+    if(c) row.addEventListener('click', function(){ openCardModal(c); });
+    row.querySelector('[data-act="minus"]').onclick = function(ev){ ev.stopPropagation(); changeDeckQty(game, deck, 'missing', key, -1); };
+    row.querySelector('[data-act="plus"]').onclick = function(ev){ ev.stopPropagation(); changeDeckQty(game, deck, 'missing', key, 1); };
+    listEl.appendChild(row);
+  });
+}
 function renderLegalityPanel(game, deck, errs, legEl, idx){
   var colors = game === 'gundam' ? gundamDeckColors(deck, idx) : [];
   var ignoredColorWarning = game === 'gundam' && deck.allowExtraColors && colors.length > 2;
@@ -2035,7 +2102,8 @@ function deckAddTile(c, game){
     if(n < 0) btn.className = 'remove';
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      addCardCopiesToDeck(game, c, n);
+      if(deckViewMode === 'missing') addMissingCopies(game, c, n);
+      else addCardCopiesToDeck(game, c, n);
       renderDeckView();
     });
     quick.appendChild(btn);
@@ -2179,6 +2247,7 @@ document.querySelectorAll('.game-btn').forEach(function(btn){
     filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
     deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
     deckSearchTerm = '';
+    deckViewMode = 'build';
     document.getElementById('search-input').value = '';
     document.getElementById('deck-search').value = '';
     document.getElementById('filter-name-mode').value = 'contains';
@@ -2238,6 +2307,31 @@ document.getElementById('deck-filter-clear').addEventListener('click', function(
 document.getElementById('deck-color-toggle').addEventListener('click', function(){
   onePieceAllowAnyColor = !onePieceAllowAnyColor;
   renderDeckAddGrid();
+});
+document.querySelectorAll('.deck-mode-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    deckViewMode = btn.dataset.mode;
+    renderDeckView();
+  });
+});
+document.getElementById('missing-buy-btn').addEventListener('click', function(){
+  var game = currentGame;
+  var idx = getIndex(game);
+  var deck = ensureActiveDeck(game);
+  var items = Object.keys(deck.missing || {}).map(function(key){
+    return { card: cardForDeckKey(idx, key), qty: deck.missing[key] };
+  }).filter(function(it){ return it.card && it.qty > 0; });
+  if(items.length === 0){ toast('No missing cards added yet'); return; }
+  window.open(tcgplayerMassEntryUrl(game, items), '_blank', 'noopener');
+});
+document.getElementById('missing-clear').addEventListener('click', function(){
+  var game = currentGame;
+  var deck = getActiveDeck(game);
+  if(!deck) return;
+  if(!confirm('Clear all missing cards from "' + deck.name + '"?')) return;
+  deck.missing = {};
+  saveState();
+  renderDeckView();
 });
 document.getElementById('deck-new').addEventListener('click', function(){
   var name = prompt('Deck name?', 'New Deck');
