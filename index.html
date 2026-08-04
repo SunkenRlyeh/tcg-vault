@@ -70,37 +70,54 @@
     <button id="deck-rename" class="text-btn">Rename</button>
     <button id="deck-delete" class="text-btn danger">Delete</button>
   </div>
-  <div id="deck-legality" class="legality"></div>
-  <div id="deck-stats" class="deck-stats"></div>
-  <div id="deck-leader-slot" class="deck-leader-slot"></div>
+  <div class="deck-mode-toggle" id="deck-mode-toggle">
+    <button class="deck-mode-btn active" data-mode="build" type="button">Deck</button>
+    <button class="deck-mode-btn" data-mode="missing" type="button">Missing</button>
+  </div>
+  <div id="deck-build-meta">
+    <div id="deck-legality" class="legality"></div>
+    <div id="deck-stats" class="deck-stats"></div>
+    <div id="deck-leader-slot" class="deck-leader-slot"></div>
+  </div>
   <div class="deck-body">
     <div class="deck-list-panel">
-      <h3>Deck (<span id="deck-count">0</span>)</h3>
-      <div id="deck-list" class="deck-list"></div>
-      <div id="deck-don-section" class="deck-resource-section hidden">
-        <h3>DON!! Deck (<span id="don-count">0</span>/10)</h3>
-        <div id="don-list" class="deck-list"></div>
+      <div id="deck-build-panel">
+        <h3>Deck (<span id="deck-count">0</span>)</h3>
+        <div id="deck-list" class="deck-list"></div>
+        <div id="deck-don-section" class="deck-resource-section hidden">
+          <h3>DON!! Deck (<span id="don-count">0</span>/10)</h3>
+          <div id="don-list" class="deck-list"></div>
+        </div>
+        <div id="deck-resource-section" class="deck-resource-section hidden">
+          <h3>Resource Deck (<span id="resource-count">0</span>/10)</h3>
+          <div id="resource-list" class="deck-list"></div>
+        </div>
+        <div id="deck-ex-resource-section" class="deck-resource-section hidden">
+          <h3>EX Resources (<span id="ex-resource-count">0</span>)</h3>
+          <div id="ex-resource-list" class="deck-list"></div>
+        </div>
+        <div id="deck-ex-base-section" class="deck-resource-section hidden">
+          <h3>EX Bases (<span id="ex-base-count">0</span>)</h3>
+          <div id="ex-base-list" class="deck-list"></div>
+        </div>
+        <div id="deck-token-section" class="deck-resource-section">
+          <h3>Tokens (<span id="token-count">0</span>)</h3>
+          <div id="token-list" class="deck-list"></div>
+        </div>
+        <div class="deck-actions">
+          <button id="deck-export" class="text-btn">Export list</button>
+          <button id="deck-import" class="text-btn">Import list</button>
+          <button id="deck-clear" class="text-btn danger">Clear deck</button>
+        </div>
       </div>
-      <div id="deck-resource-section" class="deck-resource-section hidden">
-        <h3>Resource Deck (<span id="resource-count">0</span>/10)</h3>
-        <div id="resource-list" class="deck-list"></div>
-      </div>
-      <div id="deck-ex-resource-section" class="deck-resource-section hidden">
-        <h3>EX Resources (<span id="ex-resource-count">0</span>)</h3>
-        <div id="ex-resource-list" class="deck-list"></div>
-      </div>
-      <div id="deck-ex-base-section" class="deck-resource-section hidden">
-        <h3>EX Bases (<span id="ex-base-count">0</span>)</h3>
-        <div id="ex-base-list" class="deck-list"></div>
-      </div>
-      <div id="deck-token-section" class="deck-resource-section">
-        <h3>Tokens (<span id="token-count">0</span>)</h3>
-        <div id="token-list" class="deck-list"></div>
-      </div>
-      <div class="deck-actions">
-        <button id="deck-export" class="text-btn">Export list</button>
-        <button id="deck-import" class="text-btn">Import list</button>
-        <button id="deck-clear" class="text-btn danger">Clear deck</button>
+      <div id="deck-missing-panel" class="hidden">
+        <h3>Missing (<span id="missing-count">0</span>)</h3>
+        <p class="missing-hint">Cards you still need to buy for this deck. Add them from the panel on the right — this list is separate from your deck and your Collection.</p>
+        <div id="missing-list" class="deck-list"></div>
+        <div class="deck-actions">
+          <button id="missing-buy-btn" class="text-btn buy-btn">Buy missing on TCGPlayer</button>
+          <button id="missing-clear" class="text-btn danger">Clear missing list</button>
+        </div>
       </div>
     </div>
     <div class="deck-add-panel">
