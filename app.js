@@ -1085,6 +1085,59 @@ function renderDeckStats(game, deck){
   el.innerHTML = '<div class="deck-stats-head"><span>' + total + ' card' + (total===1?'':'s') + ' in main deck</span></div>' +
     (curves || '<div class="empty">No numeric cost or level data for this deck.</div>');
 }
+function typeLabel(rawType){
+  var t = String(rawType == null ? '' : rawType).trim();
+  if(!t) return 'Unknown';
+  return t.toLowerCase().replace(/(^|\s)([a-z])/g, function(_, sp, c){ return sp + c.toUpperCase(); });
+}
+function pluralizeTypeLabel(label, qty){
+  if(qty === 1) return label;
+  return /s$/i.test(label) ? label + 'es' : label + 's';
+}
+function deckTypeBreakdown(game, deck){
+  var idx = getIndex(game);
+  var counts = {};
+  var order = [];
+  function bump(rawType, qty){
+    if(!qty) return;
+    var label = typeLabel(rawType || 'Unknown');
+    if(!Object.prototype.hasOwnProperty.call(counts, label)){ counts[label] = 0; order.push(label); }
+    counts[label] += qty;
+  }
+  if(game === 'onepiece' && deck.leader){
+    var lc = (idx.byNumber[deck.leader]||[])[0];
+    bump(lc ? lc.type : 'Leader', 1);
+  }
+  deckCardEntries(game, deck).forEach(function(e){
+    bump(e.card ? e.card.type : 'Unknown', e.qty);
+  });
+  if(game === 'gundam'){
+    ['resources','exResources','exBases'].forEach(function(bucket){
+      Object.keys(deck[bucket] || {}).forEach(function(num){
+        var qty = deck[bucket][num];
+        var c = (idx.byNumber[num]||[])[0];
+        bump(c ? c.type : bucket, qty);
+      });
+    });
+  }
+  return order.map(function(label){ return { label: label, qty: counts[label] }; });
+}
+function renderDeckTypeBreakdown(game, deck){
+  var el = document.getElementById('deck-type-breakdown');
+  if(!el) return;
+  var breakdown = deckTypeBreakdown(game, deck);
+  if(breakdown.length === 0){
+    el.innerHTML = '<div class="empty">Add cards to see a breakdown by card type.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="deck-stats-head"><span>Card types</span></div>' +
+    '<div class="collection-summary">' +
+    breakdown.map(function(b){
+      return '<div class="summary-stat"><div class="val">' + b.qty + '</div><div class="lbl">' +
+        escapeHtml(pluralizeTypeLabel(b.label, b.qty)) + '</div></div>';
+    }).join('') +
+    '</div>';
+}
 function deckToText(game, deck){
   var idx = getIndex(game);
   var lines = [];
@@ -1800,6 +1853,7 @@ function renderDeckView(){
   var legEl = document.getElementById('deck-legality');
   renderLegalityPanel(game, deck, errs, legEl, idx);
   renderDeckStats(game, deck);
+  renderDeckTypeBreakdown(game, deck);
   renderDeckValueSummary(game, deck, idx);
 
   var leaderSlot = document.getElementById('deck-leader-slot');
