@@ -1845,6 +1845,27 @@ function toast(msg){
   toastTimer = setTimeout(function(){ el.classList.add('hidden'); }, 1800);
 }
 
+function showUndoToast(msg, undoFn){
+  var el = document.getElementById('toast');
+  clearTimeout(toastTimer);
+  el.innerHTML = '';
+  var span = document.createElement('span');
+  span.textContent = msg;
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toast-undo-btn';
+  btn.textContent = 'Undo';
+  btn.onclick = function(){
+    clearTimeout(toastTimer);
+    el.classList.add('hidden');
+    undoFn();
+  };
+  el.appendChild(span);
+  el.appendChild(btn);
+  el.classList.remove('hidden');
+  toastTimer = setTimeout(function(){ el.classList.add('hidden'); }, 6000);
+}
+
 // ---------- Browse view ----------
 function fillSelect(id, options){
   var el = document.getElementById(id);
@@ -2537,6 +2558,7 @@ document.getElementById('deck-clear').addEventListener('click', function(){
     ? 'Clear all main deck and DON!! cards from "' + deck.name + '"? Your leader will stay selected.'
     : 'Clear all cards, resources, EX cards, and tokens from "' + deck.name + '"?';
   if(!confirm(msg)) return;
+  var snapshot = { cards: deck.cards, dons: deck.dons, resources: deck.resources, exResources: deck.exResources, exBases: deck.exBases, tokens: deck.tokens };
   deck.cards = {};
   if(game === 'onepiece') deck.dons = {};
   if(game === 'gundam'){
@@ -2547,6 +2569,18 @@ document.getElementById('deck-clear').addEventListener('click', function(){
   deck.tokens = {};
   saveState();
   renderDeckView();
+  showUndoToast('Cleared "' + deck.name + '".', function(){
+    deck.cards = snapshot.cards;
+    if(game === 'onepiece') deck.dons = snapshot.dons;
+    if(game === 'gundam'){
+      deck.resources = snapshot.resources;
+      deck.exResources = snapshot.exResources;
+      deck.exBases = snapshot.exBases;
+    }
+    deck.tokens = snapshot.tokens;
+    saveState();
+    renderDeckView();
+  });
 });
 document.getElementById('collection-search').addEventListener('input', renderCollectionView);
 document.getElementById('collection-deck-filter').addEventListener('change', renderCollectionView);
