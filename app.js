@@ -1149,7 +1149,7 @@ function chartBars(title, buckets){
   var bars = keys.map(function(k){
     var count = buckets[k];
     var pct = Math.max(4, Math.round((count / max) * 100));
-    return '<div class="chart-bar-col"><div class="chart-bar-track"><div class="chart-bar-fill" style="height:' + pct + '%" title="' + count + '"></div></div><div class="chart-bar-label">' + k + '</div></div>';
+    return '<div class="chart-bar-col"><div class="chart-bar-val">' + count + '</div><div class="chart-bar-track"><div class="chart-bar-fill" style="height:' + pct + '%" title="' + count + '"></div></div><div class="chart-bar-label">' + k + '</div></div>';
   }).join('');
   return '<div class="chart-card"><div class="chart-title">' + escapeHtml(title) + '</div><div class="chart-bars">' + bars + '</div></div>';
 }
