@@ -1182,16 +1182,19 @@ function renderDeckGameStats(game, deck){
   if(!el) return;
   var entries = deckCardEntries(game, deck);
   if(entries.length === 0){ el.innerHTML = ''; el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  var keywords = game === 'gundam' ? ['Burst','Blocker','Repair','Deploy'] : ['Rush','Blocker','Trigger','Banish'];
+  var keywords = game === 'gundam' ? ['Burst','Deploy','Repair','Blocker','Breach','First Strike','High-Maneuver','Support'] : ['Rush','Blocker','Banish','Trigger','Double Attack'];
   var rows = keywords.map(function(kw){
     var count = entries.reduce(function(sum,e){
       var text = (e.card && e.card.text) || '';
       return sum + (text.indexOf(kw) !== -1 ? e.qty : 0);
     }, 0);
-    return '<div class="game-stat-row"><div class="game-stat-name">' + escapeHtml(kw) + '</div><div class="game-stat-desc">Count cards mentioning ' + escapeHtml(kw) + '.</div><div class="game-stat-val">' + count + '</div></div>';
+    return { kw: kw, count: count };
+  }).filter(function(r){ return r.count > 0; }).map(function(r){
+    return '<div class="game-stat-row"><div class="game-stat-name">' + escapeHtml(r.kw) + '</div><div class="game-stat-desc">Count cards mentioning ' + escapeHtml(r.kw) + '.</div><div class="game-stat-val">' + r.count + '</div></div>';
   }).join('');
-  el.innerHTML = '<div class="chart-panel-head"><span>&#128202;</span><span>Game Statistics</span></div>' + rows;
+  if(!rows){ el.innerHTML = ''; el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '<div class="chart-panel-head"><span>&#128202;</span><span>Keywords</span></div>' + rows;
 }
 function deckGridTile(c, qty, onClick){
   var div = document.createElement('div');
