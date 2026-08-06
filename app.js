@@ -606,7 +606,7 @@ var currentTab = 'browse';
 var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var deckSearchTerm = '';
 var deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
-var deckViewMode = 'list';
+var deckDisplayMode = 'list';
 var onePieceAllowAnyColor = false;
 // 'build' = normal deck-construction view; 'missing' = the separate "cards I
 // still need to buy" list (deck.missing), which is manually curated and never
@@ -1242,8 +1242,8 @@ function renderDeckGrid(game, deck, idx){
   }
   var listEl = document.getElementById('deck-list');
   var gridEl = document.getElementById('deck-grid');
-  if(listEl) listEl.classList.toggle('hidden', deckViewMode !== 'list');
-  if(gridEl) gridEl.classList.toggle('hidden', deckViewMode !== 'grid');
+  if(listEl) listEl.classList.toggle('hidden', deckDisplayMode !== 'list');
+  if(gridEl) gridEl.classList.toggle('hidden', deckDisplayMode !== 'grid');
 }
 function deckToText(game, deck){
   var idx = getIndex(game);
@@ -2673,11 +2673,11 @@ document.querySelectorAll('.view-toggle-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     document.querySelectorAll('.view-toggle-btn').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
-    deckViewMode = btn.getAttribute('data-view');
+    deckDisplayMode = btn.getAttribute('data-view');
     var listEl = document.getElementById('deck-list');
     var gridEl = document.getElementById('deck-grid');
-    if(listEl) listEl.classList.toggle('hidden', deckViewMode !== 'list');
-    if(gridEl) gridEl.classList.toggle('hidden', deckViewMode !== 'grid');
+    if(listEl) listEl.classList.toggle('hidden', deckDisplayMode !== 'list');
+    if(gridEl) gridEl.classList.toggle('hidden', deckDisplayMode !== 'grid');
   });
 });
 init();
