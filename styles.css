@@ -366,3 +366,11 @@ button, input, select { font-family: inherit; }
 .game-stat-name { font-weight: 700; font-size: 13px; min-width: 70px; }
 .game-stat-desc { flex: 1; font-size: 11.5px; color: var(--text-dim); font-style: italic; }
 .game-stat-val { font-size: 16px; font-weight: 700; }
+
+
+/* Cost/level curve shown side by side instead of stacked */
+.curve-columns { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+.curve-columns .curve-block { flex: 1 1 200px; min-width: 200px; margin-top: 0; }
+.curve-columns .curve-block + .curve-block {
+  padding-top: 0; border-top: none; border-left: 1px solid var(--border); padding-left: 16px;
+}
