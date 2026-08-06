@@ -303,3 +303,63 @@ button, input, select { font-family: inherit; }
 .text-btn.buy-btn { color: var(--green); border-color: var(--green); }
 .summary-stat.buy-all-stat { display: flex; align-items: center; justify-content: center; padding: 4px; }
 .buy-all-btn { width: 100%; color: var(--green); border-color: var(--green); }
+
+
+/* ---------- Deck grid view + statistics panel ---------- */
+.deck-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.view-toggle { display: flex; gap: 4px; }
+.view-toggle-btn {
+  background: var(--bg-elev-2); color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 8px; width: 30px; height: 30px; font-size: 14px; line-height: 1; cursor: pointer;
+}
+.view-toggle-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.deck-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 10px; }
+.deck-grid-group-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--text-dim); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.deck-grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.deck-grid-tile {
+  position: relative; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; cursor: pointer; display: flex; flex-direction: column; border-left: 4px solid var(--accent);
+}
+.deck-grid-tile .thumb {
+  width: 100%; aspect-ratio: 5/7; background: var(--bg-elev-2);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  color: var(--text-dim); font-size: 11px; text-align: center; padding: 4px;
+}
+.deck-grid-tile .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.deck-grid-tile .meta { padding: 6px 8px 8px; }
+.deck-grid-tile .name {
+  font-size: 12px; font-weight: 600; line-height: 1.2; margin-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deck-grid-tile .sub { font-size: 10.5px; color: var(--text-dim); display: flex; justify-content: space-between; gap: 6px; }
+.deck-grid-tile .level-badge {
+  position: absolute; top: 6px; left: 6px; background: rgba(15,17,21,0.85); color: #fff;
+  font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 5px;
+}
+.deck-grid-tile .qty-badge { top: 0; right: 0; }
+
+.chart-panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.chart-panel.hidden { display: none; }
+.chart-panel-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; margin-bottom: 10px; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.chart-card { background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.chart-title { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+.chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 76px; }
+.chart-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+.chart-bar-track {
+  width: 100%; max-width: 18px; height: 56px; display: flex; align-items: flex-end;
+  background: var(--bg); border-radius: 3px; overflow: hidden;
+}
+.chart-bar-fill { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.chart-bar-label { font-size: 9.5px; color: var(--text-dim); margin-top: 3px; }
+.chart-empty { font-size: 11px; color: var(--text-dim); text-align: center; padding: 10px 0; }
+
+.game-stat-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.game-stat-row:first-of-type { border-top: none; padding-top: 0; }
+.game-stat-name { font-weight: 700; font-size: 13px; min-width: 70px; }
+.game-stat-desc { flex: 1; font-size: 11.5px; color: var(--text-dim); font-style: italic; }
+.game-stat-val { font-size: 16px; font-weight: 700; }
