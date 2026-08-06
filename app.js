@@ -606,6 +606,7 @@ var currentTab = 'browse';
 var filters = { search:'', set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
 var deckSearchTerm = '';
 var deckFilters = { set:'', color:'', type:'', rarity:'', sort:'set', nameMode:'contains' };
+var deckViewMode = 'list';
 var onePieceAllowAnyColor = false;
 // 'build' = normal deck-construction view; 'missing' = the separate "cards I
 // still need to buy" list (deck.missing), which is manually curated and never
@@ -1137,6 +1138,112 @@ function renderDeckTypeBreakdown(game, deck){
         escapeHtml(pluralizeTypeLabel(b.label, b.qty)) + '</div></div>';
     }).join('') +
     '</div>';
+}
+
+function chartBars(title, buckets){
+  var keys = Object.keys(buckets).map(function(k){ return parseInt(k, 10); }).sort(function(a,b){ return a-b; });
+  if(keys.length === 0){
+    return '<div class="chart-card"><div class="chart-title">' + escapeHtml(title) + '</div><div class="chart-empty">No data</div></div>';
+  }
+  var max = keys.reduce(function(m,k){ return Math.max(m, buckets[k]); }, 1);
+  var bars = keys.map(function(k){
+    var count = buckets[k];
+    var pct = Math.max(4, Math.round((count / max) * 100));
+    return '<div class="chart-bar-col"><div class="chart-bar-track"><div class="chart-bar-fill" style="height:' + pct + '%" title="' + count + '"></div></div><div class="chart-bar-label">' + k + '</div></div>';
+  }).join('');
+  return '<div class="chart-card"><div class="chart-title">' + escapeHtml(title) + '</div><div class="chart-bars">' + bars + '</div></div>';
+}
+function renderDeckChartStats(game, deck){
+  var el = document.getElementById('deck-chart-stats');
+  if(!el) return;
+  var entries = deckCardEntries(game, deck);
+  if(entries.length === 0){ el.innerHTML = ''; el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  var unitEntries = entries.filter(function(e){ return (e.card && e.card.type || '').toUpperCase() === 'UNIT'; });
+  var levelCurve = numericCurve(entries, 'level');
+  var costCurve = numericCurve(entries, 'cost');
+  var unitLevelCurve = numericCurve(unitEntries, 'level');
+  var unitCostCurve = numericCurve(unitEntries, 'cost');
+  var apCurve = numericCurve(entries, 'ap');
+  var hpCurve = numericCurve(entries, 'hp');
+  el.innerHTML =
+    '<div class="chart-panel-head"><span>&#128202;</span><span>Deck Statistics</span></div>' +
+    '<div class="chart-grid">' +
+      chartBars('Level Range', levelCurve) +
+      chartBars('Cost Range', costCurve) +
+      chartBars('Unit Level Range', unitLevelCurve) +
+      chartBars('Unit Cost Range', unitCostCurve) +
+      chartBars('AP Range', apCurve) +
+      chartBars('HP Range', hpCurve) +
+    '</div>';
+}
+function renderDeckGameStats(game, deck){
+  var el = document.getElementById('deck-game-stats');
+  if(!el) return;
+  var entries = deckCardEntries(game, deck);
+  if(entries.length === 0){ el.innerHTML = ''; el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  var keywords = game === 'gundam' ? ['Burst','Blocker','Repair','Deploy'] : ['Rush','Blocker','Trigger','Banish'];
+  var rows = keywords.map(function(kw){
+    var count = entries.reduce(function(sum,e){
+      var text = (e.card && e.card.text) || '';
+      return sum + (text.indexOf(kw) !== -1 ? e.qty : 0);
+    }, 0);
+    return '<div class="game-stat-row"><div class="game-stat-name">' + escapeHtml(kw) + '</div><div class="game-stat-desc">Count cards mentioning ' + escapeHtml(kw) + '.</div><div class="game-stat-val">' + count + '</div></div>';
+  }).join('');
+  el.innerHTML = '<div class="chart-panel-head"><span>&#128202;</span><span>Game Statistics</span></div>' + rows;
+}
+function deckGridTile(c, qty, onClick){
+  var div = document.createElement('div');
+  div.className = 'deck-grid-tile';
+  div.style.borderLeftColor = colorToHex(c.color);
+  var badge = (c.level != null) ? '<div class="level-badge">Lv' + escapeHtml(c.level) + '</div>' : '';
+  var priceTag = (c.price != null) ? '<span>$' + c.price.toFixed(2) + '</span>' : '<span></span>';
+  div.innerHTML =
+    '<div class="qty-badge">x' + qty + '</div>' +
+    badge +
+    '<div class="thumb">' + escapeHtml(c.name) + '</div>' +
+    '<div class="meta">' +
+      '<div class="name">' + escapeHtml(c.name) + '</div>' +
+      '<div class="sub"><span>' + escapeHtml(c.number||'') + '</span>' + priceTag + '</div>' +
+    '</div>';
+  div.addEventListener('click', function(){ (onClick || openCardModal)(c); });
+  lazyLoadImage(div.querySelector('.thumb'), c, c.name);
+  return div;
+}
+function renderDeckGrid(game, deck, idx){
+  var container = document.getElementById('deck-grid');
+  if(!container) return;
+  unobserveLazyImages(container);
+  container.innerHTML = '';
+  var entries = deckCardEntries(game, deck);
+  if(entries.length === 0){
+    container.innerHTML = '<div class="empty-state">No cards added yet.</div>';
+  } else {
+    var unitList = entries.filter(function(e){ return (e.card && e.card.type || '').toUpperCase() === 'UNIT'; });
+    var otherList = entries.filter(function(e){ return (e.card && e.card.type || '').toUpperCase() !== 'UNIT'; });
+    function sortEntries(list){
+      return list.slice().sort(function(a,b){ return a.num.localeCompare(b.num, undefined, {numeric:true}); });
+    }
+    function appendGroup(title, list){
+      if(list.length === 0) return;
+      var count = list.reduce(function(s,e){ return s+e.qty; }, 0);
+      var titleEl = document.createElement('div');
+      titleEl.className = 'deck-grid-group-title';
+      titleEl.textContent = title + ' (' + count + ')';
+      container.appendChild(titleEl);
+      var cardsEl = document.createElement('div');
+      cardsEl.className = 'deck-grid-cards';
+      sortEntries(list).forEach(function(e){ cardsEl.appendChild(deckGridTile(e.card, e.qty)); });
+      container.appendChild(cardsEl);
+    }
+    appendGroup('Unit', unitList);
+    appendGroup('Pilot, Command, Base', otherList);
+  }
+  var listEl = document.getElementById('deck-list');
+  var gridEl = document.getElementById('deck-grid');
+  if(listEl) listEl.classList.toggle('hidden', deckViewMode !== 'list');
+  if(gridEl) gridEl.classList.toggle('hidden', deckViewMode !== 'grid');
 }
 function deckToText(game, deck){
   var idx = getIndex(game);
@@ -1855,6 +1962,8 @@ function renderDeckView(){
   renderDeckStats(game, deck);
   renderDeckTypeBreakdown(game, deck);
   renderDeckValueSummary(game, deck, idx);
+  renderDeckChartStats(game, deck);
+  renderDeckGameStats(game, deck);
 
   var leaderSlot = document.getElementById('deck-leader-slot');
   var resourceSection = document.getElementById('deck-resource-section');
@@ -2022,6 +2131,7 @@ function renderDeckView(){
     tokenList.appendChild(row);
   });
 
+  renderDeckGrid(game, deck, idx);
   renderDeckAddGrid();
 }
 function renderDeckSpecialBucket(game, deck, idx, bucket, listId, countId, emptyText){
@@ -2559,6 +2669,17 @@ function init(){
     navigator.serviceWorker.register('sw.js').then(watchForServiceWorkerUpdates).catch(function(){});
   }
 }
+document.querySelectorAll('.view-toggle-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.view-toggle-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    deckViewMode = btn.getAttribute('data-view');
+    var listEl = document.getElementById('deck-list');
+    var gridEl = document.getElementById('deck-grid');
+    if(listEl) listEl.classList.toggle('hidden', deckViewMode !== 'list');
+    if(gridEl) gridEl.classList.toggle('hidden', deckViewMode !== 'grid');
+  });
+});
 init();
 
 })();
