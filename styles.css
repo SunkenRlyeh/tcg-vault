@@ -259,8 +259,13 @@ button, input, select { font-family: inherit; }
   position: fixed; bottom: calc(78px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
   background: var(--bg-elev-2); border: 1px solid var(--border); color: var(--text);
   padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 200;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); white-space: nowrap;
 }
 .toast.hidden { display: none; }
+.toast-undo-btn {
+  background: none; border: none; color: var(--accent); font-size: 13px; font-weight: 700;
+  padding: 0; flex-shrink: 0; cursor: pointer;
+}
 
 .empty-state { text-align: center; color: var(--text-dim); padding: 40px 20px; font-size: 13px; }
 
