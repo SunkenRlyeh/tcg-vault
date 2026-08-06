@@ -1082,7 +1082,7 @@ function renderDeckStats(game, deck){
   }
   var costCurve = numericCurve(entries, 'cost');
   var levelCurve = numericCurve(entries, 'level');
-  var curves = renderCurve('Cost curve', costCurve) + renderCurve('Level curve', levelCurve);
+  var curves = '<div class="curve-columns">' + renderCurve('Cost curve', costCurve) + renderCurve('Level curve', levelCurve) + '</div>';
   el.innerHTML = '<div class="deck-stats-head"><span>' + total + ' card' + (total===1?'':'s') + ' in main deck</span></div>' +
     (curves || '<div class="empty">No numeric cost or level data for this deck.</div>');
 }
