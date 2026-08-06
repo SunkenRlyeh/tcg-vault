@@ -78,13 +78,22 @@
     <div id="deck-legality" class="legality"></div>
     <div id="deck-stats" class="deck-stats"></div>
   <div id="deck-type-breakdown" class="deck-stats"></div>
+<div id="deck-chart-stats" class="chart-panel hidden"></div>
+<div id="deck-game-stats" class="chart-panel hidden"></div>
     <div id="deck-leader-slot" class="deck-leader-slot"></div>
   </div>
   <div class="deck-body">
     <div class="deck-list-panel">
       <div id="deck-build-panel">
-        <h3>Deck (<span id="deck-count">0</span>)</h3>
+        <div class="deck-list-head">
+<h3>Deck (<span id="deck-count">0</span>)</h3>
+<div class="view-toggle" id="deck-view-toggle">
+<button class="view-toggle-btn active" data-view="list" type="button" title="List view">&#9776;</button>
+<button class="view-toggle-btn" data-view="grid" type="button" title="Grid view">&#9638;</button>
+</div>
+</div>
         <div id="deck-list" class="deck-list"></div>
+        <div id="deck-grid" class="deck-grid hidden"></div>
         <div id="deck-don-section" class="deck-resource-section hidden">
           <h3>DON!! Deck (<span id="don-count">0</span>/10)</h3>
           <div id="don-list" class="deck-list"></div>
