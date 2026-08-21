@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tcg-vault-v76';
+const CACHE_NAME = 'tcg-vault-v77';
 const IMAGE_CACHE = 'tcgvault-images-v1';
 const ASSETS = [
   './',
