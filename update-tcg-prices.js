@@ -304,6 +304,15 @@ function applyPrices(cards, priceMap) {
         pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet);
       }
 
+      if (!pick && theirs.length === 1 && !claimed.has(0)) {
+        // Card number already uniquely identifies the product on TCGPlayer
+        // (e.g. promo codes like EXBP-025 are globally unique), so when
+        // exactly one same-numbered candidate is left, a differing
+        // set_code label (ours reflects the box/deck it came from; TCGPlayer
+        // may group it under a generic promo set) shouldn't block the match.
+        pick = theirs[0];
+      }
+
       if (pick) {
         claimed.add(theirs.indexOf(pick));
         matched++;
