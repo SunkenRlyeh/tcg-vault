@@ -111,6 +111,16 @@ async function buildCategoryPriceMap(categoryId, label) {
 
 function normSet(s) { return String(s || '').trim().toLowerCase(); }
 
+// Manual overrides for printings where our own set_code label is too generic
+// to disambiguate between multiple same-numbered TCGPlayer promo products
+// (e.g. two different real-world Banagher Links promo events both filed under
+// the same "Gundam Promotional Cards" TCGPlayer group with the same card
+// number). Keyed by our card id -> the specific TCGPlayer productId.
+const PRODUCT_ID_OVERRIDES = {
+  'GD01-088_p5': 709370, // Newtype Challenge 2026 Mission 4 promo
+  'GD01-088_p3': 646525, // Launch Event promo
+};
+
 // --- Runtime-only Gundam card hydration -----------------------------------
 //
 // The live app (app.js, hydrateRemoteCards()) fetches a handful of Gundam
@@ -297,8 +307,14 @@ function applyPrices(cards, priceMap) {
     const claimed = new Set();
     for (const card of ours) {
       const cardSet = normSet(card.set_code);
-      let pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet
-        && normRarity(e.rarity) === normRarity(card.rarity));
+      const overrideId = PRODUCT_ID_OVERRIDES[card.id];
+      let pick = overrideId != null
+        ? theirs.find((e, i) => !claimed.has(i) && e.productId === overrideId)
+        : null;
+      if (!pick) {
+        pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet
+          && normRarity(e.rarity) === normRarity(card.rarity));
+      }
 
       if (!pick) {
         pick = theirs.find((e, i) => !claimed.has(i) && normSet(e.setCode) === cardSet);
