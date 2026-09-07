@@ -1,3 +1,3 @@
-Last price sync: 2026-09-06T02:10:01.855Z
-One Piece: matched 1279/3079, changed 527, cleared 0
-Gundam: merged 0 runtime-only card(s), matched 1430/1688, changed 601, cleared 0
+Last price sync: 2026-09-07T02:07:12.495Z
+One Piece: matched 1278/3079, changed 509, cleared 2
+Gundam: merged 0 runtime-only card(s), matched 1430/1688, changed 498, cleared 0
